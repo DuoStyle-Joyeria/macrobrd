@@ -1,18 +1,9 @@
-<<<<<<< HEAD
-=======
-
-<!--PARTE 1 INICIO-->
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-<<<<<<< HEAD
   <title>Finanzas — Joyería (MVP)</title>
-=======
-  <title>App-Registro — Inventario & POS (Demo) - Versión Final Corregida</title>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
 
   <!-- Tailwind para estilos -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -21,20 +12,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-<<<<<<< HEAD
     /* pequeños ajustes estéticos */
     table { border-collapse: collapse; width: 100%; }
     th, td { padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 0.95rem; }
     .hidden { display: none !important; }
   </style>
   <!-- NOTA: NO incluir firebaseConfig aquí para evitar redeclare -->
-=======
-    table { border-collapse: collapse; width: 100%; }
-    th, td { padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 0.95rem; }
-    .hidden { display: none !important; }
-    .small { font-size: 0.85rem; }
-  </style>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
 </head>
 <body class="bg-slate-50 text-slate-800">
   <div id="app" class="max-w-6xl mx-auto p-4">
@@ -49,23 +32,14 @@
           <button class="w-full bg-slate-900 text-white py-2 rounded">Entrar</button>
         </form>
 
-<<<<<<< HEAD
        <!-- <form id="registerForm" class="bg-white p-4 rounded shadow space-y-3">
-=======
-        <form id="registerForm" class="bg-white p-4 rounded shadow space-y-3">
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
           <h2 class="font-semibold">Crear cuenta</h2>
           <input id="regName" type="text" required placeholder="Tu nombre (p.ej. Brandon)" class="w-full border rounded p-2">
           <input id="regEmail" type="email" required placeholder="Email" class="w-full border rounded p-2">
           <input id="regPass" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
-<<<<<<< HEAD
           <!- //No pedimos % de ahorro en registro// -->
           <button class="w-full bg-emerald-600 text-white py-2 rounded">Crear</button>
         </form>-->
-=======
-          <button class="w-full bg-emerald-600 text-white py-2 rounded">Crear</button>
-        </form>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
       </div>
     </div>
 
@@ -73,24 +47,16 @@
     <div id="mainView" class="hidden">
       <div class="flex items-center justify-between mt-4">
         <div>
-<<<<<<< HEAD
           <h1 class="text-2xl font-bold">Panel — Joyería</h1>
           <p id="companyName" class="text-sm text-slate-600"></p>
         </div>
         <div class="flex items-center gap-2">
           <button id="btnSelectCompany" class="px-3 py-2 rounded border">Empresa</button>
-=======
-          <h1 class="text-2xl font-bold">Panel — Empresa Demo</h1>
-          <p id="companyName" class="text-sm text-slate-600"></p>
-        </div>
-        <div class="flex items-center gap-2">
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
           <button id="btnPerfil" class="px-3 py-2 rounded border">Perfil</button>
           <button id="btnLogout" class="px-3 py-2 rounded bg-slate-900 text-white">Salir</button>
         </div>
       </div>
 
-<<<<<<< HEAD
       <!-- KPIs -->
       <div class="grid md:grid-cols-4 gap-4 mt-4">
         <div class="bg-white p-4 rounded shadow">
@@ -107,40 +73,6 @@
         </div>
         <div class="bg-white p-4 rounded shadow">
           <div class="text-sm text-slate-500">Deudas Totales</div>
-=======
-      <!-- KPIs SIMPLIFICADOS (solo lo esencial solicitado) -->
-      <div class="grid md:grid-cols-3 gap-4 mt-4">
-        <div class="bg-white p-4 rounded shadow">
-          <div class="text-sm text-slate-500">Caja Empresa</div>
-          <!-- saldo en tiempo real (suscripción a balances) -->
-          <div id="kpiCajaEmpresa" class="text-2xl font-semibold">$0</div>
-
-          <!-- Controles para consultar caja por rango -->
-          <div class="mt-2 text-xs text-slate-600">
-            <button id="btnCajaHoy" class="px-2 py-1 border rounded mr-1">Hoy</button>
-            <button id="btnCaja7d" class="px-2 py-1 border rounded mr-1">7 días</button>
-            <button id="btnCaja30d" class="px-2 py-1 border rounded mr-1">30 días</button>
-            <button id="btnCajaCustomToggle" class="px-2 py-1 border rounded">Rango</button>
-
-            <div id="cajaCustom" class="mt-2 hidden">
-              <input type="date" id="cajaFrom" class="border rounded p-1 mr-1">
-              <input type="date" id="cajaTo" class="border rounded p-1 mr-1">
-              <button id="btnCajaCustom" class="px-2 py-1 bg-slate-900 text-white rounded">Ver</button>
-            </div>
-          </div>
-
-          <!-- Aquí mostramos el resultado del rango consultado (no reemplaza la caja en tiempo real) -->
-          <div id="kpiCajaRangeResult" class="text-sm text-slate-500 mt-2">Caja en rango: —</div>
-        </div>
-
-        <div class="bg-white p-4 rounded shadow">
-          <div class="text-sm text-slate-500">Inventario (unidades)</div>
-          <div id="kpiInventarioTotal" class="text-2xl font-semibold">0</div>
-        </div>
-
-        <div class="bg-white p-4 rounded shadow">
-          <div class="text-sm text-slate-500">Deudas (si aplica)</div>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
           <div id="kpiDeudas" class="text-2xl font-semibold">$0</div>
         </div>
       </div>
@@ -149,10 +81,6 @@
       <div class="mt-6">
         <div class="flex gap-2 flex-wrap">
           <button data-tab="ventas" class="tab-btn px-3 py-2 rounded bg-slate-900 text-white">Ventas</button>
-<<<<<<< HEAD
-=======
-          <button data-tab="inventario" class="tab-btn px-3 py-2 rounded border">Inventario</button>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
           <button data-tab="gastos" class="tab-btn px-3 py-2 rounded border">Gastos</button>
           <button data-tab="deudas" class="tab-btn px-3 py-2 rounded border">Deudas</button>
           <button data-tab="metas" class="tab-btn px-3 py-2 rounded border">Metas</button>
@@ -160,7 +88,6 @@
           <button data-tab="estadisticas" class="tab-btn px-3 py-2 rounded border">Estadísticas</button>
         </div>
 
-<<<<<<< HEAD
         <!-- VENTAS -->
         <section id="tab-ventas" class="tab mt-4">
           <div class="grid md:grid-cols-2 gap-4">
@@ -215,118 +142,13 @@
                   </tr>
                 </thead>
                 <tbody id="tbVentas"></tbody>
-=======
-        <!-- VENTAS (POS multiproducto) -->
-        <section id="tab-ventas" class="tab mt-4">
-          <div class="grid md:grid-cols-2 gap-4">
-            <div class="bg-white p-4 rounded shadow">
-              <h3 class="font-semibold text-lg">POS — Registrar Venta</h3>
-
-              <!-- Cart (se generan filas dinámicas) -->
-              <div id="cartContainer" class="mt-3">
-                <table class="w-full" id="cartTable">
-                  <thead class="text-left">
-                    <tr>
-                      <th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody id="cartBody"></tbody>
-                </table>
-                <div class="flex gap-2 mt-3">
-                  <button id="btnAddCartLine" class="px-3 py-2 bg-slate-900 text-white rounded">Agregar artículo</button>
-                  <button id="btnClearCart" class="px-3 py-2 border rounded">Limpiar</button>
-                </div>
-
-                <div class="mt-4 space-y-2">
-                  <label class="text-sm">Cliente (opcional)</label>
-                  <input id="saleClient" class="w-full border rounded p-2" placeholder="Nombre / teléfono">
-                  <label class="text-sm">Tipo de venta</label>
-                  <select id="saleType" class="w-full border rounded p-2">
-                    <option value="minorista">Minorista</option>
-                    <option value="mayorista">Mayorista</option>
-                  </select>
-                  <label class="text-sm">Canal</label>
-                  <select id="saleChannel" class="w-full border rounded p-2">
-                    <option value="fisico">Físico</option>
-                    <option value="online">Online</option>
-                  </select>
-                </div>
-
-                <div class="mt-4 text-right">
-                  <div class="text-sm">Total</div>
-                  <div id="cartTotal" class="text-2xl font-semibold">$0</div>
-                  <button id="btnSubmitSale" class="mt-3 w-full bg-emerald-600 text-white py-2 rounded">Confirmar venta</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="bg-white p-4 rounded shadow overflow-auto">
-             <h3 class="font-semibold text-lg mb-2">Historial de Ventas</h3>
- <table class="w-full text-sm">
-  <thead class="text-left">
-    <tr>
-      <th>Fecha</th>
-      <th>Cliente</th>
-      <th>Total</th>
-      <th>Items</th>
-      <th>Acciones</th> <!-- 👈 NUEVA COLUMNA -->
-    </tr>
-  </thead>
-  <tbody id="tbVentas"></tbody>
-</table>
-
-            </div>
-          </div>
-        </section>
-
-        <!-- INVENTARIO -->
-        <section id="tab-inventario" class="tab hidden mt-4">
-          <div class="grid md:grid-cols-2 gap-4">
-            <form id="formProduct" class="bg-white p-4 rounded shadow space-y-2">
-              <h3 class="font-semibold text-lg">Crear Producto / Variante</h3>
-
-              <input type="text" id="prodName" placeholder="Nombre (ej: Polo Clásico)" required class="w-full border rounded p-2" />
-              <input type="text" id="prodSku" placeholder="SKU (opcional)" class="w-full border rounded p-2" />
-              <div class="grid grid-cols-3 gap-2">
-                <input id="prodGender" placeholder="Género (Hombre/Mujer/Unisex)" class="border rounded p-2" />
-                <input id="prodSize" placeholder="Talla (S/M/L/...)" class="border rounded p-2" />
-                <input id="prodColor" placeholder="Color (Azul/Rojo/...)" class="border rounded p-2" />
-              </div>
-              <input type="text" id="prodTeam" placeholder="Equipo (opcional)" class="w-full border rounded p-2" />
-              <div class="grid grid-cols-2 gap-2">
-                <input type="number" id="prodCost" placeholder="Costo" step="0.01" min="0" class="border rounded p-2" />
-                <input type="number" id="prodPrice" placeholder="Precio" step="0.01" min="0" class="border rounded p-2" />
-              </div>
-
-              <div class="grid grid-cols-2 gap-2">
-                <input type="number" id="prodInitialStock" placeholder="Stock inicial (cantidad)" min="0" step="1" class="border rounded p-2" />
-                <input type="text" id="prodNotes" placeholder="Notas (opcional)" class="border rounded p-2" />
-              </div>
-
-              <button id="btnCreateProduct" class="w-full bg-emerald-600 text-white py-2 rounded">Crear producto</button>
-            </form>
-
-            <div class="bg-white p-4 rounded shadow overflow-auto">
-              <h3 class="font-semibold text-lg mb-2">Inventario</h3>
-              <table class="w-full text-sm">
-                <thead class="text-left">
-                  <tr><th>Nombre</th><th>Attrs</th><th>Precio</th><th>Stock</th><th>Acciones</th></tr>
-                </thead>
-                <tbody id="tbInventory"></tbody>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
               </table>
             </div>
           </div>
         </section>
 
-<<<<<<< HEAD
         <!-- GASTOS -->
         <section id="tab-gastos" class="tab hidden mt-4">
-=======
-        <!-- Secciones que mantenemos (puedes expandirlas luego) -->
-        <section id="tab-gastos" class="tab hidden mt-4">
-          <!-- Mantengo tu formulario original de gastos aquí -->
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
           <div class="grid md:grid-cols-2 gap-4">
             <form id="formGasto" class="bg-white p-4 rounded shadow space-y-2">
               <h3 class="font-semibold text-lg">Registrar Gasto</h3>
@@ -336,17 +158,12 @@
               <input type="text" id="gastoDesc" placeholder="Descripción" class="w-full border rounded p-2">
               <select id="gastoPagadoPor" class="w-full border rounded p-2">
                 <option value="empresa">Empresa</option>
-<<<<<<< HEAD
                 <option value="brandon">Brandon</option>
                 <option value="socia">Socia</option>
-=======
-                <option value="otro">Otro</option>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
               </select>
               <input type="hidden" id="editingGastoId" value="">
               <button class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Gasto</button>
             </form>
-<<<<<<< HEAD
 
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Historial de Gastos</h3>
@@ -356,19 +173,12 @@
                     <th>Fecha</th><th>Categoría</th><th>Monto</th><th>Pagado por</th><th>Descripción</th><th>Acciones</th>
                   </tr>
                 </thead>
-=======
-            <div class="bg-white p-4 rounded shadow overflow-auto">
-              <h3 class="font-semibold text-lg mb-2">Historial de Gastos</h3>
-              <table class="w-full text-sm">
-                <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th></tr></thead>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
                 <tbody id="tbGastos"></tbody>
               </table>
             </div>
           </div>
         </section>
 
-<<<<<<< HEAD
         <!-- DEUDAS -->
         <section id="tab-deudas" class="tab hidden mt-4">
           <div class="grid md:grid-cols-2 gap-4">
@@ -536,27 +346,6 @@
                 <tbody id="tbMovimientos"></tbody>
               </table>
             </div>
-=======
-        <section id="tab-deudas" class="tab hidden mt-4">
-          <!-- Simplificado -->
-          <div class="bg-white p-4 rounded shadow">
-            <h3 class="font-semibold">Deudas</h3>
-            <div id="deudasContainer" class="text-sm text-slate-600">Aquí se listarán las deudas si las usas.</div>
-          </div>
-        </section>
-
-        <section id="tab-metas" class="tab hidden mt-4">
-          <div class="bg-white p-4 rounded shadow">
-            <h3 class="font-semibold">Metas</h3>
-            <div id="metasContainer" class="text-sm text-slate-600">Metas y avance.</div>
-          </div>
-        </section>
-
-        <section id="tab-movimientos" class="tab hidden mt-4">
-          <div class="bg-white p-4 rounded shadow">
-            <h3 class="font-semibold">Movimientos</h3>
-            <div id="movimientosContainer" class="text-sm text-slate-600">Movimientos caja y contabilidad.</div>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
           </div>
         </section>
 
@@ -564,7 +353,6 @@
         <section id="tab-estadisticas" class="tab hidden mt-4">
           <div class="grid md:grid-cols-2 gap-4">
             <div class="bg-white p-4 rounded shadow" style="height:320px">
-<<<<<<< HEAD
               <h3 class="font-semibold mb-2">Ingresos vs Gastos (últimos 90 días)</h3>
               <canvas id="chartIG" height="280"></canvas>
             </div>
@@ -582,14 +370,6 @@
             <div class="bg-white p-4 rounded shadow">
               <h3 class="font-semibold mb-2">Deudas - Saldo y avance</h3>
               <div id="statsDeudasList" class="space-y-2 text-sm"></div>
-=======
-              <h3 class="font-semibold mb-2">Top Productos (últimos 90 días)</h3>
-              <canvas id="chartTopProducts" height="280"></canvas>
-            </div>
-            <div class="bg-white p-4 rounded shadow" style="height:320px">
-              <h3 class="font-semibold mb-2">Ventas por día (últimos 30 días)</h3>
-              <canvas id="chartVentasPorDia" height="280"></canvas>
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
             </div>
           </div>
         </section>
@@ -597,7 +377,6 @@
       </div>
     </div>
   </div>
-<<<<<<< HEAD
 
     <!-- =========================
        SCRIPT: Firebase + Lógica (PARTE 2)
@@ -605,20 +384,6 @@
   <script type="module">
     // --------- FIREBASE CONFIG (usa el tuyo, aquí dejo el que ya usabas) ----------
     const firebaseConfig = {
-=======
-  <!--PARTE 1 FINAL-->
-
-  <!-- =========================
-     SCRIPT: Firebase + Lógica (COMPLETO y FINAL)
-     ========================= -->
-  <script type="module">
-    /**************************************************************************
-     * FIREBASE INIT
-     * Cambia `firebaseConfig` por tus credenciales si quieres.
-     **************************************************************************/
-    const firebaseConfig = {
-      // Puedes reemplazar por tu propio config si prefieres
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
       apiKey: "AIzaSyCTFSlLoKv6KKujTqjMeMjNc-AlKQ2-rng",
       authDomain: "duostyle01-611b9.firebaseapp.com",
       projectId: "duostyle01-611b9",
@@ -630,7 +395,6 @@
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
     import {
-<<<<<<< HEAD
       getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile
     } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
     import {
@@ -642,29 +406,10 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
     window.db = db; window.auth = auth;
-=======
-      getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-      createUserWithEmailAndPassword, signOut, updateProfile
-    } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
-
-    import {
-      getFirestore, doc, setDoc, getDoc, addDoc, getDocs, onSnapshot,
-      collection, query, orderBy, serverTimestamp, updateDoc, deleteDoc,
-      runTransaction, where, limit
-    } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
-
-    // Nota: getDocs y where ya están disponibles vía import destructuring (getDocs es reexportado en la SDK)
-    // Si tu entorno marca error con getDocs, reemplaza donde lo uso por getDocs (viene en el SDK usado).
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
 
     // ---- Helpers UI
     const $ = s => document.querySelector(s);
     const $$ = s => Array.from(document.querySelectorAll(s));
-<<<<<<< HEAD
     const money = n => `$${Number(n||0).toLocaleString('es-CO', {maximumFractionDigits: 2})}`;
 
     // ---- State
@@ -673,33 +418,11 @@
     let unsubscribers = [];
 
     // ---- Auth handlers
-=======
-    const money = n => `$${Number(n||0).toLocaleString('es-CO',{maximumFractionDigits:2})}`;
-
-    // ---- State
-    let currentUser = null;
-    let companyId = null; // por ahora: `${user.uid}-company`
-    let unsubscribers = [];
-    let inventoryCache = new Map(); // productId => productData
-    let salesCache = []; // quick local cache for charts
-
-    /**************************************************************************
-     * AUTH: login / register
-     **************************************************************************/
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
     $("#loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const email = $("#loginEmail").value.trim();
       const pass = $("#loginPass").value.trim();
-<<<<<<< HEAD
       await signInWithEmailAndPassword(auth, email, pass);
-=======
-      try {
-        await signInWithEmailAndPassword(auth, email, pass);
-      } catch (err) {
-        alert("Error login: " + err.message);
-      }
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
     });
 
     $("#registerForm").addEventListener("submit", async (e) => {
@@ -707,7 +430,6 @@
       const name = $("#regName").value.trim();
       const email = $("#regEmail").value.trim();
       const pass = $("#regPass").value.trim();
-<<<<<<< HEAD
       const ahorroPct = 0;
 
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
@@ -724,47 +446,15 @@
       await setDoc(doc(db, "companies", companyId, "state", "balances"), {
         cajaEmpresa: 0, cajaBrandon: 0, cajaSocia: 0, inversiones: 0, deudasTotales: 0
       });
-=======
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, email, pass);
-        await updateProfile(cred.user, { displayName: name });
-        // crear user doc
-        await setDoc(doc(db, "users", cred.user.uid), { displayName: name, email });
-        // crear company por defecto (mismo patrón que tu repo)
-        companyId = `${cred.user.uid}-company`;
-        await setDoc(doc(db, "companies", companyId), {
-          name: `${name} — Empresa`,
-          owners: [{ uid: cred.user.uid, name }],
-          createdAt: serverTimestamp()
-        });
-        // balances iniciales
-        await setDoc(doc(db, "companies", companyId, "state", "balances"), {
-          cajaEmpresa: 0, deudasTotales: 0
-        });
-      } catch (err) {
-        alert("Error creating account: " + err.message);
-      }
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
     });
 
     $("#btnLogout").addEventListener("click", () => signOut(auth));
 
-<<<<<<< HEAD
     // ---- onAuth
-=======
-    /**************************************************************************
-     * onAuthStateChanged: inicialización de la app cuando hay user
-     **************************************************************************/
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
     onAuthStateChanged(auth, async (user) => {
       currentUser = user;
       unsubscribers.forEach(u => u && u());
       unsubscribers = [];
-<<<<<<< HEAD
-=======
-      inventoryCache.clear();
-
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
       if (!user) {
         $("#authView").classList.remove("hidden");
         $("#mainView").classList.add("hidden");
@@ -773,7 +463,6 @@
       $("#authView").classList.add("hidden");
       $("#mainView").classList.remove("hidden");
 
-<<<<<<< HEAD
       companyId = `${user.uid}-company`;
       const compRef = doc(db, "companies", companyId);
       const snap = await getDoc(compRef);
@@ -785,27 +474,10 @@
         });
         await setDoc(doc(db, "companies", companyId, "state", "balances"), {
           cajaEmpresa: 0, cajaBrandon: 0, cajaSocia: 0, inversiones: 0, deudasTotales: 0
-=======
-      // CompanyId simple (igual que tu repo): user.uid + '-company'
-      companyId = `${user.uid}-company`;
-
-      // Asegurar doc company exista
-      const compRef = doc(db, "companies", companyId);
-      const compSnap = await getDoc(compRef);
-      if (!compSnap.exists()) {
-        await setDoc(compRef, {
-          name: "Empresa — Demo",
-          owners: [{ uid: user.uid, name: user.displayName || "Owner" }],
-          createdAt: serverTimestamp()
-        });
-        await setDoc(doc(db, "companies", companyId, "state", "balances"), {
-          cajaEmpresa: 0, deudasTotales: 0
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
         });
       }
       $("#companyName").textContent = (await getDoc(compRef)).data().name;
 
-<<<<<<< HEAD
       // Setup UI & subscriptions
       setupTabs();
       setupVentaFormHints();
@@ -838,27 +510,6 @@
     });
 
     // ---- Tabs
-=======
-      // Setup UI
-      setupTabs();
-      setupInventoryHandlers();
-      setupPosHandlers();
-      setupCharts();
-      setupCajaControls(); // <<< importante: engancha controles de caja
-
-      // Subscriptions en tiempo real:
-      subscribeInventory();
-      subscribeSales();
-      subscribeBalances(); // KPI
-
-      // Initial load for charts etc
-      await loadSalesOnce();
-    });
-
-    /**************************************************************************
-     * Tabs UI
-     **************************************************************************/
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
     function setupTabs() {
       $$(".tab-btn").forEach(btn => {
         btn.onclick = () => {
@@ -869,7 +520,6 @@
           $(`#tab-${id}`).classList.remove("hidden");
         };
       });
-<<<<<<< HEAD
     }
 
     // ---- KPIs (subscribe balances doc)
@@ -881,43 +531,10 @@
         $("#kpiCajaBrandon").textContent = money(d.cajaBrandon);
         $("#kpiCajaSocia").textContent = money(d.cajaSocia);
         $("#kpiDeudas").textContent = money(d.deudasTotales);
-=======
-      // activar ventas por defecto
-      $("[data-tab='ventas']").click();
-    }
-
-    /**************************************************************************
-     * SUBSCRIBE / INVENTORY
-     *
-     * Collections structure:
-     * companies/{companyId}/inventory/{productId} -> product doc with:
-     *   { name, sku, attributes: {size,color,gender,team}, price, cost, stock, notes, createdAt }
-     *
-     * companies/{companyId}/inventory/{productId}/batches/{batchId} -> batch entries
-     * companies/{companyId}/stock_movements/{movementId} -> audit log: { productId, qty, type: 'in'|'out', refId, createdAt }
-     **************************************************************************/
-
-    // escucha en tiempo real inventario
-    function subscribeInventory() {
-      const invCol = collection(db, "companies", companyId, "inventory");
-      const q = query(invCol, orderBy("name"));
-      const unsub = onSnapshot(q, snap => {
-        snap.docChanges().forEach(ch => {
-          const id = ch.doc.id;
-          const data = { id, ...ch.doc.data() };
-          if (ch.type === "removed") inventoryCache.delete(id);
-          else inventoryCache.set(id, data);
-        });
-        renderInventoryTable();
-        populateProductSelects(); // actualizar selects del POS
-        // actualizar KPI de inventario total
-        updateInventarioKPI();
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
       });
       unsubscribers.push(unsub);
     }
 
-<<<<<<< HEAD
     // ------------------------------------------------
     // computePaidBy: decide quién pagó el costo y crear movs si needed
     // ------------------------------------------------
@@ -1126,61 +743,11 @@
 
   } catch (err) {
     console.error("recomputeBalances error:", err);
-=======
-
-// eliminar venta
-        // ELIMINAR VENTA
-   async function deleteSale(ventaId) {
-  try {
-    await runTransaction(db, async (tx) => {
-      const ventaRef = doc(db, "companies", companyId, "sales", ventaId);
-      const ventaSnap = await tx.get(ventaRef);
-      if (!ventaSnap.exists()) throw "Venta no existe";
-      const venta = ventaSnap.data();
-
-      // Leer balances
-      const balancesRef = doc(db, "companies", companyId, "state", "balances");
-      const balancesSnap = await tx.get(balancesRef);
-      const balances = balancesSnap.data();
-
-      // Leer todos los productos primero
-      const productos = [];
-      for (let item of venta.items) {
-        const prodRef = doc(db, "companies", companyId, "inventory", item.productId);
-        const prodSnap = await tx.get(prodRef);
-        if (prodSnap.exists()) {
-          productos.push({ ref: prodRef, data: prodSnap.data(), item });
-        }
-      }
-
-      // --- Ahora sí: solo escrituras ---
-      // 1. Actualizar balances
-      tx.update(balancesRef, {
-        cajaEmpresa: (balances.cajaEmpresa || 0) - venta.total
-      });
-
-      // 2. Reponer stock
-      for (let { ref, data, item } of productos) {
-        tx.update(ref, {
-          stock: (data.stock || 0) + item.qty
-        });
-      }
-
-      // 3. Eliminar venta
-      tx.delete(ventaRef);
-    });
-
-    alert("Venta eliminada y balances/stock actualizados ✅");
-  } catch (err) {
-    console.error("Error al eliminar venta:", err);
-    alert("Error al eliminar venta: " + err);
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
   }
 }
 
 
 
-<<<<<<< HEAD
     // small helper: adjustBalances incremental (kept for rare direct ops)
     async function adjustBalances({ cajaEmpresa=0, cajaBrandon=0, cajaSocia=0, deudasTotales=0, inversiones=0 }) {
       await setDoc(doc(db, "companies", companyId, "state", "balances"), {
@@ -1756,35 +1323,10 @@
             document.querySelector('[data-tab="movimientos"]').click();
           };
         });
-=======
-
-    // carga inicial de ventas/sales solo 1 vez para charts
-    async function loadSalesOnce() {
-      try {
-        const q = query(collection(db, "companies", companyId, "sales"), orderBy("createdAt"));
-        const docs = await getDocs(q);
-        salesCache = docs.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderSalesTable();
-        updateCharts();
-      } catch (err) {
-        console.error("loadSalesOnce", err);
-      }
-    }
-
-    // subscription ventas (para lista en tiempo real)
-    function subscribeSales() {
-      const salesCol = collection(db, "companies", companyId, "sales");
-      const q = query(salesCol, orderBy("createdAt", "desc"));
-      const unsub = onSnapshot(q, snap => {
-        salesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderSalesTable();
-        updateCharts();
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
       });
       unsubscribers.push(unsub);
     }
 
-<<<<<<< HEAD
     // ------------------------------------------------
     // GRÁFICAS (Chart.js) y estadísticas adicionales
     // ------------------------------------------------
@@ -1953,630 +1495,6 @@
       setupMovTipoToggle();
     });
 
-=======
-    // Subscribe balances (para KPI)
-    function subscribeBalances() {
-      const ref = doc(db, "companies", companyId, "state", "balances");
-      const unsub = onSnapshot(ref, snap => {
-        const d = snap.exists() ? snap.data() : {};
-        $("#kpiCajaEmpresa").textContent = money(d.cajaEmpresa || 0);
-        $("#kpiDeudas").textContent = money(d.deudasTotales || 0);
-        // inventario total se actualiza en subscribeInventory
-      });
-      unsubscribers.push(unsub);
-    }
-
-    // calcula inventario total y lo pone en KPI
-    function updateInventarioKPI() {
-      let total = 0;
-      for (const p of inventoryCache.values()) {
-        total += Number(p.stock || 0);
-      }
-      $("#kpiInventarioTotal").textContent = total;
-    }
-
-    /**************************************************************************
-     * INVENTORY: UI handlers (crear producto, renderizar, agregar stock)
-     **************************************************************************/
-    function setupInventoryHandlers() {
-      $("#btnCreateProduct").addEventListener("click", async (e) => {
-        e.preventDefault();
-        await handleCreateProduct();
-      });
-    }
-
-    // Crear producto (documento con stock inicial y attributes)
-    async function handleCreateProduct() {
-      const name = $("#prodName").value.trim();
-      if (!name) return alert("Nombre requerido");
-      const sku = $("#prodSku").value.trim() || null;
-      const gender = $("#prodGender").value.trim() || null;
-      const size = $("#prodSize").value.trim() || null;
-      const color = $("#prodColor").value.trim() || null;
-      const team = $("#prodTeam").value.trim() || null;
-      const cost = Number($("#prodCost").value || 0);
-      const price = Number($("#prodPrice").value || 0);
-      const initialStock = Number($("#prodInitialStock").value || 0);
-      const notes = $("#prodNotes").value.trim() || null;
-
-      try {
-        // Generar doc id automático
-        const newRef = doc(collection(db, "companies", companyId, "inventory"));
-        const productDoc = {
-          name,
-          sku,
-          attributes: { gender, size, color, team },
-          cost,
-          price,
-          stock: initialStock,
-          notes,
-          createdAt: serverTimestamp()
-        };
-        // escribir doc producto
-        await setDoc(newRef, productDoc);
-
-        // crear batch + movimiento en transacción para trazabilidad
-        await runTransaction(db, async (tx) => {
-          // crear batch nested collection
-          const batchRef = doc(collection(db, "companies", companyId, "inventory", newRef.id, "batches"));
-          tx.set(batchRef, {
-            quantity_added: initialStock,
-            remaining: initialStock,
-            received_at: serverTimestamp(),
-            note: "Stock inicial"
-          });
-          // movimiento de stock
-          const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
-          tx.set(movRef, {
-            productId: newRef.id,
-            qty: initialStock,
-            type: "in",
-            note: "Stock inicial",
-            refId: newRef.id,
-            createdAt: serverTimestamp()
-          });
-        });
-
-        // limpiar formulario
-        $("#prodName").value = "";
-        $("#prodSku").value = "";
-        $("#prodGender").value = "";
-        $("#prodSize").value = "";
-        $("#prodColor").value = "";
-        $("#prodTeam").value = "";
-        $("#prodCost").value = "";
-        $("#prodPrice").value = "";
-        $("#prodInitialStock").value = "";
-        $("#prodNotes").value = "";
-        alert("Producto creado correctamente");
-
-      } catch (err) {
-        console.error("handleCreateProduct error", err);
-        alert("Error creando producto: " + err.message);
-      }
-    }
-
-    // Renderiza tabla inventario desde inventoryCache
-    function renderInventoryTable() {
-      const tb = $("#tbInventory");
-      tb.innerHTML = "";
-      const arr = Array.from(inventoryCache.values());
-      if (!arr.length) {
-        tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay productos aún.</td></tr>`;
-        return;
-      }
-      arr.forEach(p => {
-        const attrs = [];
-        if (p.attributes?.gender) attrs.push(p.attributes.gender);
-        if (p.attributes?.size) attrs.push(p.attributes.size);
-        if (p.attributes?.color) attrs.push(p.attributes.color);
-        if (p.attributes?.team) attrs.push(p.attributes.team);
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><strong>${escapeHtml(p.name)}</strong><div class="text-xs text-slate-500">${p.sku || ''}</div></td>
-          <td class="small">${attrs.join(' • ')}</td>
-          <td>${money(p.price)}</td>
-          <td>${Number(p.stock || 0)}</td>
-          <td>
-            <button data-id="${p.id}" class="btnAddStock px-2 py-1 border rounded text-sm">+ Stock</button>
-            <button data-id="${p.id}" class="btnEditProduct px-2 py-1 border rounded text-sm">Editar</button>
-            <button data-id="${p.id}" class="btnDeleteProduct px-2 py-1 border rounded text-sm">Borrar</button>
-          </td>
-        `;
-        tb.appendChild(tr);
-      });
-
-      // attach listeners
-      $$(".btnAddStock").forEach(b => b.onclick = (ev) => {
-        const id = ev.currentTarget.dataset.id;
-        promptAddStock(id);
-      });
-      $$(".btnDeleteProduct").forEach(b => b.onclick = (ev) => {
-        const id = ev.currentTarget.dataset.id;
-        if (confirm("Borrar producto? Esta acción es irreversible.")) deleteProduct(id);
-      });
-      $$(".btnEditProduct").forEach(b => b.onclick = (ev) => {
-        const id = ev.currentTarget.dataset.id;
-        editProductModal(id);
-      });
-    }
-
-    // Prompt simple para agregar stock (puedes mejorarlo a modal)
-    async function promptAddStock(productId) {
-      const qtyStr = prompt("¿Cuántas unidades quieres añadir al stock?");
-      if (!qtyStr) return;
-      const qty = Number(qtyStr);
-      if (!qty || qty <= 0) return alert("Cantidad inválida");
-      const note = prompt("Nota (opcional)", "Producción semanal");
-
-      try {
-        // run transaction: actualizar stock del producto + crear batch + movement
-        await runTransaction(db, async (tx) => {
-          const prodRef = doc(db, "companies", companyId, "inventory", productId);
-          const prodSnap = await tx.get(prodRef);
-          if (!prodSnap.exists()) throw new Error("Producto no existe");
-          const oldStock = Number(prodSnap.data().stock || 0);
-          const newStock = oldStock + qty;
-          tx.update(prodRef, { stock: newStock });
-
-          // batch
-          const batchRef = doc(collection(db, "companies", companyId, "inventory", productId, "batches"));
-          tx.set(batchRef, {
-            quantity_added: qty,
-            remaining: qty,
-            received_at: serverTimestamp(),
-            note: note || null
-          });
-
-          // movement
-          const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
-          tx.set(movRef, {
-            productId,
-            qty,
-            type: "in",
-            note: note || null,
-            refId: batchRef.id,
-            createdAt: serverTimestamp()
-          });
-        });
-        alert("Stock actualizado");
-      } catch (err) {
-        console.error("promptAddStock error", err);
-        alert("Error en agregar stock: " + err.message);
-      }
-    }
-
-    async function deleteProduct(productId) {
-      try {
-        await deleteDoc(doc(db, "companies", companyId, "inventory", productId));
-        alert("Producto eliminado");
-      } catch (err) {
-        console.error(err);
-        alert("Error al eliminar");
-      }
-    }
-
-    function editProductModal(productId) {
-      const p = inventoryCache.get(productId);
-      if (!p) return alert("No encontrado");
-      // Simple prompt-based edit (para MVP). Puedes reemplazar por modal.
-      const newPrice = prompt("Nuevo precio", p.price || 0);
-      if (newPrice === null) return;
-      const newCost = prompt("Nuevo costo", p.cost || 0);
-      if (newCost === null) return;
-      updateDoc(doc(db, "companies", companyId, "inventory", productId), {
-        price: Number(newPrice),
-        cost: Number(newCost)
-      }).then(() => alert("Producto actualizado")).catch(err => {
-        console.error(err);
-        alert("Error actualizando");
-      });
-    }
-
-    /**************************************************************************
-     * POS / VENTAS: UX & transacción segura (CORREGIDA + ACTUALIZA BALANCES)
-     * - Ahora la transacción lee *todos* los documentos primero y luego hace
-     *   las escrituras: regla obligatoria de Firestore.
-     * - Además actualiza companies/{companyId}/state/balances.cajaEmpresa
-     **************************************************************************/
-    function setupPosHandlers() {
-      $("#btnAddCartLine").onclick = () => createCartLine();
-      $("#btnClearCart").onclick = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
-      $("#btnSubmitSale").onclick = submitSaleHandler;
-      // create one line by default
-      createCartLine();
-    }
-
-    // Genera una fila en la tabla de carrito
-    function createCartLine() {
-      const tr = document.createElement("tr");
-      // cada select tendrá data-product-id en option.value
-      const selectHtml = `<select class="prodSelect w-full border rounded p-1">
-        <option value="">-- seleccionar --</option>
-      </select>`;
-      tr.innerHTML = `
-        <td>${selectHtml}</td>
-        <td><input type="number" class="lineQty border rounded p-1 w-24" min="1" value="1"></td>
-        <td><input type="number" class="linePrice border rounded p-1 w-32" min="0" step="0.01"></td>
-        <td class="lineSubtotal">${money(0)}</td>
-        <td><button class="btnRemoveLine px-2 py-1 border rounded">Eliminar</button></td>
-      `;
-      $("#cartBody").appendChild(tr);
-
-      // populate select options with current inventory
-      populateProductSelectElement(tr.querySelector(".prodSelect"));
-
-      // events
-      tr.querySelector(".prodSelect").onchange = (e) => {
-        const pid = e.target.value;
-        if (!pid) {
-          tr.querySelector(".linePrice").value = 0;
-          tr.querySelector(".lineQty").value = 1;
-          updateLineSubtotal(tr);
-          return;
-        }
-        const p = inventoryCache.get(pid);
-        tr.dataset.productId = pid;
-        tr.querySelector(".linePrice").value = p.price || 0;
-        tr.querySelector(".lineQty").value = 1;
-        updateLineSubtotal(tr);
-      };
-      tr.querySelector(".lineQty").oninput = () => updateLineSubtotal(tr);
-      tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
-      tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
-    }
-
-    // Pone options en un select HTML desde inventoryCache
-    function populateProductSelectElement(selectEl) {
-      selectEl.innerHTML = `<option value="">-- seleccionar --</option>`;
-      Array.from(inventoryCache.values()).forEach(p => {
-        const opt = document.createElement("option");
-        opt.value = p.id;
-        // label: nombre + attrs
-        const attrs = [];
-        if (p.attributes?.gender) attrs.push(p.attributes.gender);
-        if (p.attributes?.size) attrs.push(p.attributes.size);
-        if (p.attributes?.color) attrs.push(p.attributes.color);
-        if (p.attributes?.team) attrs.push(p.attributes.team);
-        opt.text = `${p.name} ${attrs.length ? "(" + attrs.join(" • ") + ")" : ""} — Stock: ${p.stock || 0}`;
-        selectEl.appendChild(opt);
-      });
-    }
-
-    // actualiza todos los selects en el POS cuando cambia inventario
-    function populateProductSelects() {
-      $$(".prodSelect").forEach(sel => populateProductSelectElement(sel));
-    }
-
-    function updateLineSubtotal(tr) {
-      const q = Number(tr.querySelector(".lineQty").value || 0);
-      const p = Number(tr.querySelector(".linePrice").value || 0);
-      const sub = q * p;
-      tr.querySelector(".lineSubtotal").textContent = money(sub);
-      updateCartTotal();
-    }
-
-    function updateCartTotal() {
-      const rows = Array.from($("#cartBody").querySelectorAll("tr"));
-      let total = 0;
-      rows.forEach(r => {
-        // extraer subtotal limpiando moneda
-        const subStr = r.querySelector(".lineSubtotal").textContent || "$0";
-        const sub = Number(subStr.replace(/\$/g,'').replace(/\./g,'').replace(/\,/g,'.')) || 0;
-        total += sub;
-      });
-      $("#cartTotal").textContent = money(total);
-    }
-
-    // Handler submit: construye payload y ejecuta transacción (CORREGIDO)
-    async function submitSaleHandler() {
-      const rows = Array.from($("#cartBody").querySelectorAll("tr"));
-      if (!rows.length) return alert("El carrito está vacío");
-
-      // construir items
-      const items = [];
-      for (const r of rows) {
-        const pid = r.dataset.productId;
-        if (!pid) return alert("Selecciona producto en todas las líneas");
-        const qty = Number(r.querySelector(".lineQty").value || 0);
-        const price = Number(r.querySelector(".linePrice").value || 0);
-        if (qty <= 0) return alert("Cantidad inválida");
-        const prod = inventoryCache.get(pid);
-        if (!prod) return alert("Producto no encontrado (recarga)");
-        items.push({ productId: pid, name: prod.name, qty, price });
-      }
-      const total = items.reduce((s, it) => s + (it.qty * it.price), 0);
-      const saleDoc = {
-        createdAt: serverTimestamp(),
-        createdBy: currentUser.uid,
-        client: $("#saleClient").value.trim() || null,
-        type: $("#saleType").value,
-        channel: $("#saleChannel").value,
-        total,
-        items
-      };
-
-      // Ejecutar transacción atómica CORRECTA:
-      // 1) leer TODOS los productos (tx.get) -> validar stock
-      // 2) luego hacer las escrituras: update stock, set sale, set stock_movements, set movimiento caja
-      try {
-        await runTransaction(db, async (tx) => {
-          // --- 1) Lecturas: obtener snapshot de cada producto involucrado ---
-          const prodSnaps = {}; // productId -> DocumentSnapshot
-          for (const it of items) {
-            const prodRef = doc(db, "companies", companyId, "inventory", it.productId);
-            const snap = await tx.get(prodRef);
-            if (!snap.exists()) {
-              throw new Error(`Producto ${it.name} no existe (id=${it.productId})`);
-            }
-            prodSnaps[it.productId] = { ref: prodRef, data: snap.data() };
-          }
-
-          // Leer balances (documento que usamos para la KPI de caja)
-          const balancesRef = doc(db, "companies", companyId, "state", "balances");
-          const balancesSnap = await tx.get(balancesRef);
-          const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
-
-          // Validar stock en memoria con los datos leídos
-          for (const it of items) {
-            const currentStock = Number(prodSnaps[it.productId].data.stock || 0);
-            if (currentStock < it.qty) {
-              throw new Error(`Stock insuficiente para ${it.name}. Disponible: ${currentStock}`);
-            }
-          }
-
-          // --- 2) Escrituras: ahora sí hacemos updates/sets ---
-          // 2.1 actualizar stock por producto
-          for (const it of items) {
-            const prodRef = prodSnaps[it.productId].ref;
-            const currentStock = Number(prodSnaps[it.productId].data.stock || 0);
-            const newStock = currentStock - it.qty;
-            tx.update(prodRef, { stock: newStock });
-          }
-
-          // 2.2 crear sale doc
-          const saleRef = doc(collection(db, "companies", companyId, "sales"));
-          tx.set(saleRef, saleDoc);
-
-          // 2.3 crear stock_movements por cada item (auditoría)
-          for (const it of items) {
-            const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
-            tx.set(movRef, {
-              productId: it.productId,
-              qty: -it.qty,            // negativo = salida
-              type: "out",
-              note: `Venta (${it.qty} x ${it.name})`,
-              refId: saleRef.id,
-              createdAt: serverTimestamp()
-            });
-          }
-
-          // 2.4 crear movimiento de caja (ingreso)
-          const movCajaRef = doc(collection(db, "companies", companyId, "movements"));
-          tx.set(movCajaRef, {
-            tipo: "ingreso",
-            cuenta: "cajaEmpresa",
-            fecha: new Date().toISOString().slice(0,10),
-            monto: total,
-            desc: `Venta total ID ${saleRef.id}`,
-            saleId: saleRef.id,
-            createdAt: serverTimestamp()
-          });
-
-          // 2.5 actualizar balances (cajaEmpresa) en el mismo tx
-          const newCaja = oldCaja + Number(total || 0);
-          if (balancesSnap.exists()) {
-            tx.update(balancesRef, { cajaEmpresa: newCaja });
-          } else {
-            // si no existía balances, crear doc con valor inicial
-            tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
-          }
-        });
-
-        // si todo OK
-        alert("Venta registrada correctamente");
-        // limpiar carrito
-        $("#cartBody").innerHTML = "";
-        updateCartTotal();
-      } catch (err) {
-        console.error("submitSaleHandler error:", err);
-        alert("Error al crear venta: " + (err.message || err));
-      }
-    }
-
-    /**************************************************************************
-     * RENDER ventas (lista)
-     **************************************************************************/
-    function renderSalesTable() {
-  const tbody = document.querySelector("#tbVentas");
-  tbody.innerHTML = "";
-
-  salesCache.forEach(sale => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="border px-2 py-1">${new Date(sale.createdAt?.toDate?.() || Date.now()).toLocaleString()}</td>
-      <td class="border px-2 py-1">${sale.items.map(i => `${i.qty} x ${i.name}`).join("<br>")}</td>
-      <td class="border px-2 py-1">${money(sale.total)}</td>
-      <td class="border px-2 py-1">
-        <button class="bg-red-500 text-white px-2 py-1 rounded text-xs delete-sale" data-id="${sale.id}">Eliminar</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  // conectar botones eliminar
-  $$(".delete-sale").forEach(btn => {
-    btn.onclick = async () => {
-      const saleId = btn.dataset.id;
-      if (confirm("¿Seguro que deseas eliminar esta venta?")) {
-        await deleteSale(saleId);
-      }
-    };
-  });
-}
-
-    /**************************************************************************
-     * CHARTS (básicos)
-     **************************************************************************/
-    let chartTopProducts = null;
-    let chartVentasPorDia = null;
-
-    function setupCharts() {
-      const ctx1 = document.getElementById("chartTopProducts").getContext("2d");
-      chartTopProducts = new Chart(ctx1, { type: 'bar', data: { labels: [], datasets: [{ label: 'Vendidos', data: [], backgroundColor: 'rgba(16,185,129,0.8)' }] }, options: {} });
-
-      const ctx2 = document.getElementById("chartVentasPorDia").getContext("2d");
-      chartVentasPorDia = new Chart(ctx2, { type: 'line', data: { labels: [], datasets: [{ label: 'Ventas', data: [], borderColor: 'rgba(15,118,110,1)', backgroundColor: 'rgba(15,118,110,0.2)' }] }, options: {} });
-    }
-
-    // Actualiza datos de charts con salesCache + inventoryCache
-    function updateCharts() {
-      // Top products: sumar qty por productId en salesCache
-      const counter = {};
-      salesCache.forEach(s => {
-        (s.items || []).forEach(it => {
-          counter[it.productId] = (counter[it.productId] || 0) + it.qty;
-        });
-      });
-      const top = Object.entries(counter).sort((a,b) => b[1]-a[1]).slice(0,8);
-      const labels = top.map(([pid]) => {
-        const p = inventoryCache.get(pid);
-        return p ? `${p.name} ${p.attributes?.size||''} ${p.attributes?.color||''}` : pid;
-      });
-      const data = top.map(([_,qty]) => qty);
-      chartTopProducts.data.labels = labels;
-      chartTopProducts.data.datasets[0].data = data;
-      chartTopProducts.update();
-
-      // Ventas por día (últimos 30)
-      const mapDays = {}; // 'YYYY-MM-DD' -> total
-      const now = new Date();
-      for (let i=29;i>=0;i--) {
-        const d = new Date(now); d.setDate(now.getDate()-i);
-        const key = d.toISOString().slice(0,10);
-        mapDays[key] = 0;
-      }
-      salesCache.forEach(s => {
-        const key = s.createdAt?.seconds ? new Date(s.createdAt.seconds*1000).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
-        if (mapDays[key] !== undefined) mapDays[key] += Number(s.total || 0);
-      });
-      const labels2 = Object.keys(mapDays);
-      const data2 = Object.values(mapDays);
-      chartVentasPorDia.data.labels = labels2;
-      chartVentasPorDia.data.datasets[0].data = data2;
-      chartVentasPorDia.update();
-    }
-
-    /**************************************************************************
-     * FUNCIONES: Caja por rango
-     * computeCajaTotal: suma movimientos (movements) filtrando por cuenta=cajaEmpresa
-     **************************************************************************/
-    // Nota: usa getDocs + query + where
-    async function computeCajaTotal(fromDate, toDate) {
-      try {
-        const movCol = collection(db, "companies", companyId, "movements");
-        const q = query(
-          movCol,
-          where("cuenta", "==", "cajaEmpresa"),
-          where("createdAt", ">=", fromDate),
-          where("createdAt", "<=", toDate)
-        );
-        const snap = await getDocs(q);
-        let total = 0;
-        snap.forEach(d => {
-          const md = d.data();
-          const m = Number(md.monto || 0);
-          total += (md.tipo === "egreso") ? -m : m;
-        });
-        return total;
-      } catch (err) {
-        console.error("computeCajaTotal error:", err);
-        throw err;
-      }
-    }
-
-    function formatDateForLabel(d) {
-      return d.toISOString().slice(0,10);
-    }
-
-    function setupCajaControls() {
-      // mostrar/hide custom
-      $("#btnCajaCustomToggle").onclick = () => {
-        $("#cajaCustom").classList.toggle("hidden");
-      };
-
-      $("#btnCajaHoy").onclick = async () => {
-        const today = new Date();
-        const from = new Date(today); from.setHours(0,0,0,0);
-        const to = new Date(today); to.setHours(23,59,59,999);
-        try {
-          const total = await computeCajaTotal(from, to);
-          $("#kpiCajaRangeResult").textContent = `Caja hoy (${formatDateForLabel(from)}): ${money(total)}`;
-        } catch (err) {
-          alert("Error calculando caja hoy: " + err.message);
-        }
-      };
-
-      $("#btnCaja7d").onclick = async () => {
-        const today = new Date();
-        const from = new Date(today); from.setDate(today.getDate() - 6); from.setHours(0,0,0,0); // últimos 7 días (incluye hoy)
-        const to = new Date(today); to.setHours(23,59,59,999);
-        try {
-          const total = await computeCajaTotal(from, to);
-          $("#kpiCajaRangeResult").textContent = `Caja últimos 7 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`;
-        } catch (err) {
-          alert("Error calculando 7 días: " + err.message);
-        }
-      };
-
-      $("#btnCaja30d").onclick = async () => {
-        const today = new Date();
-        const from = new Date(today); from.setDate(today.getDate() - 29); from.setHours(0,0,0,0);
-        const to = new Date(today); to.setHours(23,59,59,999);
-        try {
-          const total = await computeCajaTotal(from, to);
-          $("#kpiCajaRangeResult").textContent = `Caja últimos 30 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`;
-        } catch (err) {
-          alert("Error calculando 30 días: " + err.message);
-        }
-      };
-
-      $("#btnCajaCustom").onclick = async () => {
-        const fromStr = $("#cajaFrom").value;
-        const toStr = $("#cajaTo").value;
-        if (!fromStr || !toStr) return alert("Selecciona ambas fechas");
-        const from = new Date(fromStr); from.setHours(0,0,0,0);
-        const to = new Date(toStr); to.setHours(23,59,59,999);
-        if (to < from) return alert("Rango inválido");
-        try {
-          const total = await computeCajaTotal(from, to);
-          $("#kpiCajaRangeResult").textContent = `Caja (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`;
-        } catch (err) {
-          alert("Error calculando rango: " + err.message);
-        }
-      };
-    }
-
-    /**************************************************************************
-     * UTIL: escapeHtml
-     **************************************************************************/
-    function escapeHtml(s) {
-      if (!s) return '';
-      return String(s).replace(/[&<>"'`=\/]/g, function (c) {
-        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c];
-      });
-    }
-
-    /**************************************************************************
-     * Utilities finales: puedes usarlas para debug en consola
-     **************************************************************************/
-    window._dbg = {
-      db,
-      inventoryCache,
-      salesCache,
-      runTransaction
-    };
->>>>>>> 6d8c9b0567348a948b9adda09138a5bca391873f
   </script>
 </body>
 </html>
