@@ -18,6 +18,7 @@
     .small { font-size: 0.85rem; }
     .search-suggestion { cursor: pointer; padding: 6px; border-bottom: 1px solid #eee; }
     .search-suggestion:hover { background: #f1f5f9; }
+    .kbd { background:#111827; color:#fff; padding:2px 6px; border-radius:4px; font-size:12px; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -26,40 +27,42 @@
     <div id="authView" class="mt-10">
       <h1 class="text-2xl font-bold mb-4">Acceso</h1>
       <div class="grid md:grid-cols-2 gap-6">
+        <!-- LOGIN -->
         <form id="loginForm" class="bg-white p-4 rounded shadow space-y-3">
           <h2 class="font-semibold">Iniciar sesión</h2>
           <input id="loginEmail" type="email" required placeholder="Email" class="w-full border rounded p-2">
-          <input id="loginPassword" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
+          <input id="loginPass" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
           <button class="w-full bg-slate-900 text-white py-2 rounded">Entrar</button>
         </form>
 
+        <!-- REGISTER -->
         <form id="registerForm" class="bg-white p-4 rounded shadow space-y-3">
           <h2 class="font-semibold">Crear cuenta</h2>
-          <input id="registerName" type="text" required placeholder="Tu nombre (p.ej. Brandon)" class="w-full border rounded p-2">
-          <input id="registerEmail" type="email" required placeholder="Email" class="w-full border rounded p-2">
-          <input id="registerPassword" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
-          <div>
-            <label class="block mb-1">Registrar como</label>
-            <select id="registerRole" class="w-full border rounded p-2">
-              <option value="admin">Administrador</option>
-              <option value="empleado">Empleado</option>
-            </select>
-          </div>
+          <input id="regName" type="text" required placeholder="Tu nombre (p.ej. Brandon)" class="w-full border rounded p-2">
+          <input id="regEmail" type="email" required placeholder="Email" class="w-full border rounded p-2">
+          <input id="regPass" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
+          <select id="regRole" class="w-full border rounded p-2">
+            <option value="admin">Administrador</option>
+            <option value="empleado">Empleado</option>
+          </select>
 
-          <label class="flex items-center space-x-2">
-            <input type="checkbox" id="isEmpleadoCheckbox">
-            <span>Si es empleado, indícale el ID de la empresa</span>
-          </label>
-
-          <div id="empleadoCompanyField" class="hidden">
-            <input type="text" id="empleadoCompanyId" placeholder="ID de empresa (lo da el Admin)" class="w-full border rounded p-2">
+          <!-- Campos solo para EMPLEADO -->
+          <div id="employeeExtra" class="space-y-2 hidden">
+            <input id="regCompanyCode" type="text" placeholder="Código de Empresa (companyId)" class="w-full border rounded p-2">
+            <input id="regInviteCode" type="text" placeholder="Código de Invitación" class="w-full border rounded p-2">
+            <p class="text-xs text-slate-500">
+              Pide al administrador el <span class="kbd">Código de Empresa</span> y el <span class="kbd">Código de Invitación</span>.
+            </p>
           </div>
 
           <button class="w-full bg-emerald-600 text-white py-2 rounded">Crear</button>
         </form>
       </div>
 
-      <p class="text-sm text-slate-500 mt-4">Nota: cada cuenta de administrador crea una "empresa" separada (companies/{uid}-company). Un administrador puede crear empleados vinculados a su empresa usando el ID de la empresa.</p>
+      <p class="text-sm text-slate-500 mt-4">
+        Nota: los administradores crean su propia empresa automáticamente. Los empleados deben registrarse con
+        un código de invitación y el código de empresa del administrador para quedar vinculados.
+      </p>
     </div>
 
     <!-- APP PRINCIPAL -->
@@ -68,7 +71,6 @@
         <div>
           <h1 class="text-2xl font-bold">Panel — <span id="companyName">Empresa</span></h1>
           <p id="userRole" class="text-sm text-slate-500"></p>
-          <div id="userNameDisplay" class="text-sm text-slate-500"></div>
         </div>
         <div class="flex items-center gap-2">
           <button id="btnPerfil" class="px-3 py-2 rounded border">Perfil</button>
@@ -114,6 +116,8 @@
           <button data-tab="gastos" class="tab-btn px-3 py-2 rounded border">Gastos</button>
           <button data-tab="movimientos" class="tab-btn px-3 py-2 rounded border">Movimientos</button>
           <button data-tab="estadisticas" class="tab-btn px-3 py-2 rounded border">Estadísticas</button>
+          <!-- Solo admin -->
+          <button data-tab="usuarios" class="tab-btn px-3 py-2 rounded border">Usuarios</button>
         </div>
 
         <!-- VENTAS -->
@@ -250,27 +254,53 @@
           </div>
         </section>
 
+        <!-- USUARIOS (solo Admin) -->
+        <!-- USUARIOS (solo Admin) -->
+<section id="tab-usuarios" class="tab hidden mt-4">
+  <div class="grid md:grid-cols-2 gap-4">
+    <!-- Crear Usuario -->
+    <form id="formCreateUser" class="bg-white p-4 rounded shadow space-y-2">
+      <h3 class="font-semibold text-lg">Crear Usuario</h3>
+      <div class="text-sm text-slate-600">
+        Código de Empresa: 
+        <span id="companyIdLabel" class="font-mono bg-slate-100 px-2 py-1 rounded"></span>
+      </div>
+      <input id="userName" type="text" placeholder="Nombre del empleado" required class="w-full border rounded p-2">
+      <input id="userEmail" type="email" placeholder="Email del empleado" required class="w-full border rounded p-2">
+      <input id="userPass" type="password" placeholder="Contraseña" required class="w-full border rounded p-2">
+      <select id="userRole" class="w-full border rounded p-2">
+        <option value="empleado">Empleado</option>
+        <option value="admin">Administrador (co-propietario)</option>
+      </select>
+      <button id="btnCreateUser" type="submit" class="w-full bg-emerald-600 text-white py-2 rounded">
+        Crear Usuario
+      </button>
+      <p class="text-xs text-slate-500">
+        El empleado podrá iniciar sesión con el correo y la contraseña que le asignes aquí.
+      </p>
+    </form>
+
+    <!-- Listado de Usuarios -->
+    <div class="bg-white p-4 rounded shadow overflow-auto">
+      <h3 class="font-semibold text-lg mb-2">Usuarios registrados</h3>
+      <table class="w-full text-sm">
+        <thead class="text-left">
+          <tr>
+            <th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tbUsers"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
       </div>
     </div>
   </div>
 
   <!-- Llamamos al JS principal que contiene toda la lógica -->
   <script type="module" src="js/app.js"></script>
-
-  <script>
-    // pequeño helper UI para mostrar campo de empresa cuando se elige empleado
-    document.addEventListener('DOMContentLoaded', () => {
-      const isEmp = document.getElementById("isEmpleadoCheckbox");
-      const field = document.getElementById("empleadoCompanyField");
-      isEmp?.addEventListener("change", (e) => field.classList.toggle("hidden", !e.target.checked));
-      // también sincronizar select role -> checkbox
-      const roleSel = document.getElementById("registerRole");
-      roleSel?.addEventListener("change", (e) => {
-        const isEmpleado = e.target.value === "empleado";
-        isEmp.checked = isEmpleado;
-        field.classList.toggle("hidden", !isEmpleado);
-      });
-    });
-  </script>
 </body>
 </html>
