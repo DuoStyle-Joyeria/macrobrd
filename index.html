@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>App-Registro — Inventario & POS (Demo) - Multi-tenant por usuario</title>
+  <title>App-Registro — Inventario & POS (Multi-tenant)</title>
 
   <!-- Tailwind para estilos -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -22,7 +22,6 @@
 </head>
 <body class="bg-slate-50 text-slate-800">
   <div id="app" class="max-w-6xl mx-auto p-4">
-
     <!-- AUTH -->
     <div id="authView" class="mt-10">
       <h1 class="text-2xl font-bold mb-4">Acceso</h1>
@@ -30,28 +29,46 @@
         <form id="loginForm" class="bg-white p-4 rounded shadow space-y-3">
           <h2 class="font-semibold">Iniciar sesión</h2>
           <input id="loginEmail" type="email" required placeholder="Email" class="w-full border rounded p-2">
-          <input id="loginPass" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
+          <input id="loginPassword" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
           <button class="w-full bg-slate-900 text-white py-2 rounded">Entrar</button>
         </form>
 
         <form id="registerForm" class="bg-white p-4 rounded shadow space-y-3">
           <h2 class="font-semibold">Crear cuenta</h2>
-          <input id="regName" type="text" required placeholder="Tu nombre (p.ej. Brandon)" class="w-full border rounded p-2">
-          <input id="regEmail" type="email" required placeholder="Email" class="w-full border rounded p-2">
-          <input id="regPass" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
+          <input id="registerName" type="text" required placeholder="Tu nombre (p.ej. Brandon)" class="w-full border rounded p-2">
+          <input id="registerEmail" type="email" required placeholder="Email" class="w-full border rounded p-2">
+          <input id="registerPassword" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
+          <div>
+            <label class="block mb-1">Registrar como</label>
+            <select id="registerRole" class="w-full border rounded p-2">
+              <option value="admin">Administrador</option>
+              <option value="empleado">Empleado</option>
+            </select>
+          </div>
+
+          <label class="flex items-center space-x-2">
+            <input type="checkbox" id="isEmpleadoCheckbox">
+            <span>Si es empleado, indícale el ID de la empresa</span>
+          </label>
+
+          <div id="empleadoCompanyField" class="hidden">
+            <input type="text" id="empleadoCompanyId" placeholder="ID de empresa (lo da el Admin)" class="w-full border rounded p-2">
+          </div>
+
           <button class="w-full bg-emerald-600 text-white py-2 rounded">Crear</button>
         </form>
       </div>
 
-      <p class="text-sm text-slate-500 mt-4">Nota: cada cuenta genera una "empresa" separada. Puedes desactivar una cuenta por impago desde el documento <code>users/{uid}.planActivo</code>.</p>
+      <p class="text-sm text-slate-500 mt-4">Nota: cada cuenta de administrador crea una "empresa" separada (companies/{uid}-company). Un administrador puede crear empleados vinculados a su empresa usando el ID de la empresa.</p>
     </div>
 
     <!-- APP PRINCIPAL -->
     <div id="mainView" class="hidden">
       <div class="flex items-center justify-between mt-4">
         <div>
-          <h1 class="text-2xl font-bold">Panel — Empresa Demo</h1>
-          <p id="companyName" class="text-sm text-slate-600"></p>
+          <h1 class="text-2xl font-bold">Panel — <span id="companyName">Empresa</span></h1>
+          <p id="userRole" class="text-sm text-slate-500"></p>
+          <div id="userNameDisplay" class="text-sm text-slate-500"></div>
         </div>
         <div class="flex items-center gap-2">
           <button id="btnPerfil" class="px-3 py-2 rounded border">Perfil</button>
@@ -84,7 +101,7 @@
         </div>
 
         <div class="bg-white p-4 rounded shadow">
-          <div class="text-sm text-slate-500">Deudas (si aplica)</div>
+          <div class="text-sm text-slate-500">Deudas</div>
           <div id="kpiDeudas" class="text-2xl font-semibold">$0</div>
         </div>
       </div>
@@ -95,13 +112,11 @@
           <button data-tab="ventas" class="tab-btn px-3 py-2 rounded bg-slate-900 text-white">Ventas</button>
           <button data-tab="inventario" class="tab-btn px-3 py-2 rounded border">Inventario</button>
           <button data-tab="gastos" class="tab-btn px-3 py-2 rounded border">Gastos</button>
-          <button data-tab="deudas" class="tab-btn px-3 py-2 rounded border">Deudas</button>
-          <button data-tab="metas" class="tab-btn px-3 py-2 rounded border">Metas</button>
           <button data-tab="movimientos" class="tab-btn px-3 py-2 rounded border">Movimientos</button>
           <button data-tab="estadisticas" class="tab-btn px-3 py-2 rounded border">Estadísticas</button>
         </div>
 
-        <!-- VENTAS (POS) -->
+        <!-- VENTAS -->
         <section id="tab-ventas" class="tab mt-4">
           <div class="grid md:grid-cols-2 gap-4">
             <div class="bg-white p-4 rounded shadow">
@@ -144,9 +159,7 @@
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Historial de Ventas</h3>
               <table class="w-full text-sm">
-                <thead class="text-left">
-                  <tr><th>Fecha</th><th>Cliente</th><th>Total</th><th>Items</th><th>Acciones</th></tr>
-                </thead>
+                <thead class="text-left"><tr><th>Fecha</th><th>Cliente</th><th>Total</th><th>Items</th><th>Acciones</th></tr></thead>
                 <tbody id="tbVentas"></tbody>
               </table>
             </div>
@@ -189,7 +202,7 @@
           </div>
         </section>
 
-        <!-- otras secciones (simplificadas) -->
+        <!-- GASTOS -->
         <section id="tab-gastos" class="tab hidden mt-4">
           <div class="grid md:grid-cols-2 gap-4">
             <form id="formGasto" class="bg-white p-4 rounded shadow space-y-2">
@@ -202,19 +215,34 @@
                 <option value="empresa">Empresa</option>
                 <option value="otro">Otro</option>
               </select>
-              <button class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Gasto</button>
+              <button id="btnSaveGasto" class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Gasto</button>
             </form>
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Historial de Gastos</h3>
-              <table class="w-full text-sm"><thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th></tr></thead><tbody id="tbGastos"></tbody></table>
+              <table class="w-full text-sm">
+                <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th><th>Acciones</th></tr></thead>
+                <tbody id="tbGastos"></tbody>
+              </table>
             </div>
           </div>
         </section>
 
-        <section id="tab-deudas" class="tab hidden mt-4"><div class="bg-white p-4 rounded shadow"><h3 class="font-semibold">Deudas</h3><div id="deudasContainer" class="text-sm text-slate-600">Aquí se listarán las deudas.</div></div></section>
-        <section id="tab-metas" class="tab hidden mt-4"><div class="bg-white p-4 rounded shadow"><h3 class="font-semibold">Metas</h3><div id="metasContainer" class="text-sm text-slate-600">Metas y avance.</div></div></section>
-        <section id="tab-movimientos" class="tab hidden mt-4"><div class="bg-white p-4 rounded shadow"><h3 class="font-semibold">Movimientos</h3><div id="movimientosContainer" class="text-sm text-slate-600">Movimientos caja y contabilidad.</div></div></section>
+        <!-- MOVIMIENTOS -->
+        <section id="tab-movimientos" class="tab hidden mt-4">
+          <div class="bg-white p-4 rounded shadow">
+            <h3 class="font-semibold">Movimientos</h3>
+            <div id="movimientosContainer" class="text-sm text-slate-600">
+              <div class="mb-2">
+                <button id="btnMovHoy" class="px-2 py-1 border rounded mr-1">Hoy</button>
+                <button id="btnMov7d" class="px-2 py-1 border rounded mr-1">7 días</button>
+                <button id="btnMov30d" class="px-2 py-1 border rounded mr-1">30 días</button>
+              </div>
+              <table class="w-full text-sm"><thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Monto</th><th>Desc</th></tr></thead><tbody id="tbMovimientos"></tbody></table>
+            </div>
+          </div>
+        </section>
 
+        <!-- ESTADÍSTICAS -->
         <section id="tab-estadisticas" class="tab hidden mt-4">
           <div class="grid md:grid-cols-2 gap-4">
             <div class="bg-white p-4 rounded shadow" style="height:320px"><h3 class="font-semibold mb-2">Top Productos (últimos 90 días)</h3><canvas id="chartTopProducts" height="280"></canvas></div>
@@ -226,955 +254,23 @@
     </div>
   </div>
 
-  <!-- =========================
-     SCRIPT: Firebase + Lógica (COMPLETO y FINAL)
-     ========================= -->
-  <script type="module">
-    /**************************************************************************
-     * FIREBASE INIT
-     * Reemplaza firebaseConfig por el tuyo si quieres
-     **************************************************************************/
-    const firebaseConfig = {
-      apiKey: "AIzaSyCTFSlLoKv6KKujTqjMeMjNc-AlKQ2-rng",
-      authDomain: "duostyle01-611b9.firebaseapp.com",
-      projectId: "duostyle01-611b9",
-      storageBucket: "duostyle01-611b9.firebasestorage.app",
-      messagingSenderId: "4630065257",
-      appId: "1:4630065257:web:11b7b0a0ac2fa776bbf2f8",
-      measurementId: "G-FW6QEJMZKT"
-    };
+  <!-- Llamamos al JS principal que contiene toda la lógica -->
+  <script type="module" src="js/app.js"></script>
 
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-    import {
-      getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-      createUserWithEmailAndPassword, signOut, updateProfile
-    } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
-
-    import {
-      getFirestore, doc, setDoc, getDoc, addDoc, getDocs, onSnapshot,
-      collection, query, orderBy, serverTimestamp, updateDoc, deleteDoc,
-      runTransaction, where, limit
-    } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    // ---- Helpers UI
-    const $ = s => document.querySelector(s);
-    const $$ = s => Array.from(document.querySelectorAll(s));
-    const money = n => `$${Number(n||0).toLocaleString('es-CO',{maximumFractionDigits:2})}`;
-
-    // ---- State
-    let currentUser = null;
-    let companyId = null; // companyId = `${user.uid}-company` - IMPORTANT: per-user
-    let unsubscribers = [];
-    let inventoryCache = new Map();
-    let salesCache = [];
-
-    /**************************************************************************
-     * AUTH: login / register
-     * - IMPORTANT: each user gets a user doc with planActivo (true by default)
-     * - and a company doc companies/{user.uid}-company
-     **************************************************************************/
-    $("#loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const email = $("#loginEmail").value.trim();
-      const pass = $("#loginPass").value.trim();
-      try {
-        await signInWithEmailAndPassword(auth, email, pass);
-      } catch (err) {
-        alert("Error login: " + err.message);
-      }
+  <script>
+    // pequeño helper UI para mostrar campo de empresa cuando se elige empleado
+    document.addEventListener('DOMContentLoaded', () => {
+      const isEmp = document.getElementById("isEmpleadoCheckbox");
+      const field = document.getElementById("empleadoCompanyField");
+      isEmp?.addEventListener("change", (e) => field.classList.toggle("hidden", !e.target.checked));
+      // también sincronizar select role -> checkbox
+      const roleSel = document.getElementById("registerRole");
+      roleSel?.addEventListener("change", (e) => {
+        const isEmpleado = e.target.value === "empleado";
+        isEmp.checked = isEmpleado;
+        field.classList.toggle("hidden", !isEmpleado);
+      });
     });
-
-    $("#registerForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const name = $("#regName").value.trim();
-      const email = $("#regEmail").value.trim();
-      const pass = $("#regPass").value.trim();
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, email, pass);
-        await updateProfile(cred.user, { displayName: name });
-
-        // Create user doc with planActivo = true (so account is usable)
-        await setDoc(doc(db, "users", cred.user.uid), {
-          displayName: name,
-          email,
-          planActivo: true,
-          createdAt: serverTimestamp()
-        });
-
-        // Create company doc for this user (isolated)
-        companyId = `${cred.user.uid}-company`;
-        await setDoc(doc(db, "companies", companyId), {
-          name: `${name} — Empresa`,
-          owners: [{ uid: cred.user.uid, name }],
-          createdAt: serverTimestamp()
-        });
-
-        // Create balances doc
-        await setDoc(doc(db, "companies", companyId, "state", "balances"), {
-          cajaEmpresa: 0, deudasTotales: 0
-        });
-
-        alert("Cuenta creada. Ya puedes iniciar sesión.");
-      } catch (err) {
-        alert("Error creating account: " + err.message);
-      }
-    });
-
-    $("#btnLogout").addEventListener("click", () => signOut(auth));
-
-    
-    /**************************************************************************
-     * onAuthStateChanged: inicialización por usuario (multi-tenant)
-     * - Verificamos planActivo en users/{uid} antes de permitir el acceso
-     **************************************************************************/
-
-    // ------------------------------
-// onAuthStateChanged (con validación planActive)
-// Reemplaza tu onAuthStateChanged actual por este bloque.
-// ------------------------------
-onAuthStateChanged(auth, async (user) => {
-  // limpiar subscripciones previas y caches (tu lógica ya tenía esto)
-  currentUser = user;
-  unsubscribers.forEach(u => u && u());
-  unsubscribers = [];
-  inventoryCache.clear();
-  salesCache = [];
-
-  if (!user) {
-    // no está autenticado: mostrar pantalla de login / ocultar app
-    $("#authView").classList.remove("hidden");
-    $("#mainView").classList.add("hidden");
-    return;
-  }
-
-  // Si llegó aquí hay un user autenticado
-  // Construimos el companyId con el patrón que usas en todo el proyecto
-  companyId = `${user.uid}-company`;
-
-  try {
-    // Leemos el documento de la empresa (companies/{companyId})
-    const compRef = doc(db, "companies", companyId);
-    const compSnap = await getDoc(compRef);
-
-    if (!compSnap.exists()) {
-      // Si no existe el doc de company lo creamos (misma lógica que tenías antes)
-      await setDoc(compRef, {
-        name: `${user.displayName || "Empresa"} — Empresa`,
-        owners: [{ uid: user.uid, name: user.displayName || "Owner" }],
-        createdAt: serverTimestamp(),
-        planActive: true,    // por defecto activo al crear
-        planExpira: null
-      });
-      // balances iniciales
-      await setDoc(doc(db, "companies", companyId, "state", "balances"), {
-        cajaEmpresa: 0, deudasTotales: 0
-      });
-    }
-
-    // Re-lectura (en caso que lo acabemos de crear)
-    const compSnap2 = await getDoc(compRef);
-    const compData = compSnap2.exists() ? compSnap2.data() : null;
-
-    // --- AQUÍ VALIDAMOS EL ESTADO DEL PLAN ---
-    // Si planActive está presente y es falso -> cerrar sesión y avisar.
-    if (compData && compData.planActive === false) {
-      // Mensaje claro para el usuario y cierre de sesión
-      alert("⚠️ Tu cuenta está temporalmente INACTIVA por pago no realizado. Ponte en contacto con soporte para reactivar el plan.");
-      // Cerrar sesión explícitamente y terminar flujo
-      await signOut(auth);
-      return;
-    }
-    // Si planActive es true o no está definido (asumimos activo) => continuar
-
-    // --- SI LLEGAMOS AQUÍ: plan activo -> inicializar UI y subscripciones ---
-    $("#authView").classList.add("hidden");
-    $("#mainView").classList.remove("hidden");
-    $("#companyName").textContent = compData?.name || "Empresa — Demo";
-
-
-       // Listener en tiempo real del doc de company para desconectar en caliente si cambian planActive
-const compDocRef = doc(db, "companies", companyId);
-const unsubComp = onSnapshot(compDocRef, snap => {
-  const d = snap.exists() ? snap.data() : null;
-  if (d && d.planActive === false) {
-    alert("El administrador ha desactivado tu plan. Serás desconectado.");
-    signOut(auth);
-  }
-});
-// Guardar el unsub para evitar fugas de memoria (ya tienes unsubscribers[]):
-unsubscribers.push(unsubComp);
-
-
-
-    // Setup UI y subscripciones (igual que tenías)
-    setupTabs();
-    setupInventoryHandlers();
-    setupPosHandlers();
-    setupPosSearch();
-    setupCharts();
-    setupCajaControls();
-
-    // Subscriptions en tiempo real:
-    subscribeInventory();
-    subscribeSales();
-    subscribeBalances();
-
-    // Cargar ventas e inicializar charts una vez
-    await loadSalesOnce();
-
-  } catch (err) {
-    console.error("onAuthStateChanged -> error:", err);
-    // Fallo de lectura: forzamos logout por seguridad y mostramos mensaje genérico
-    try { await signOut(auth); } catch (e) { /* ignore */ }
-    alert("Error verificando estado de la cuenta. Intenta iniciar sesión de nuevo o contacta soporte.");
-  }
-});
-
-
-    /**************************************************************************
-     * Tabs UI
-     **************************************************************************/
-    function setupTabs() {
-      $$(".tab-btn").forEach(btn => {
-        btn.onclick = () => {
-          const id = btn.dataset.tab;
-          $$(".tab-btn").forEach(b => b.classList.remove("bg-slate-900","text-white"));
-          btn.classList.add("bg-slate-900","text-white");
-          $$(".tab").forEach(t => t.classList.add("hidden"));
-          $(`#tab-${id}`).classList.remove("hidden");
-        };
-      });
-      // activate ventas by default
-      $("[data-tab='ventas']").click();
-    }
-
-    /**************************************************************************
-     * SUBSCRIPTIONS (per-company)
-     * All DB access MUST use companies/{companyId} to avoid cross-account mixing.
-     **************************************************************************/
-    function subscribeInventory() {
-      const invCol = collection(db, "companies", companyId, "inventory");
-      const q = query(invCol, orderBy("name"));
-      const unsub = onSnapshot(q, snap => {
-        snap.docChanges().forEach(ch => {
-          const id = ch.doc.id;
-          const data = { id, ...ch.doc.data() };
-          if (ch.type === "removed") inventoryCache.delete(id);
-          else inventoryCache.set(id, data);
-        });
-        renderInventoryTable();
-        populateProductSelects();
-        updateInventarioKPI();
-      });
-      unsubscribers.push(unsub);
-    }
-
-    async function loadSalesOnce() {
-      try {
-        const q = query(collection(db, "companies", companyId, "sales"), orderBy("createdAt"));
-        const docs = await getDocs(q);
-        salesCache = docs.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderSalesTable();
-        updateCharts();
-      } catch (err) {
-        console.error("loadSalesOnce", err);
-      }
-    }
-
-    function subscribeSales() {
-      const salesCol = collection(db, "companies", companyId, "sales");
-      const q = query(salesCol, orderBy("createdAt", "desc"));
-      const unsub = onSnapshot(q, snap => {
-        salesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderSalesTable();
-        updateCharts();
-      });
-      unsubscribers.push(unsub);
-    }
-
-    function subscribeBalances() {
-      const ref = doc(db, "companies", companyId, "state", "balances");
-      const unsub = onSnapshot(ref, snap => {
-        const d = snap.exists() ? snap.data() : {};
-        $("#kpiCajaEmpresa").textContent = money(d.cajaEmpresa || 0);
-        $("#kpiDeudas").textContent = money(d.deudasTotales || 0);
-      });
-      unsubscribers.push(unsub);
-    }
-
-    function updateInventarioKPI() {
-      let total = 0;
-      for (const p of inventoryCache.values()) total += Number(p.stock || 0);
-      $("#kpiInventarioTotal").textContent = total;
-    }
-
-    /**************************************************************************
-     * ELIMINAR VENTA (asegura restaurar stock y restar caja en transaction)
-     **************************************************************************/
-    async function deleteSale(ventaId) {
-      try {
-        await runTransaction(db, async (tx) => {
-          const ventaRef = doc(db, "companies", companyId, "sales", ventaId);
-          const ventaSnap = await tx.get(ventaRef);
-          if (!ventaSnap.exists()) throw new Error("Venta no encontrada");
-          const venta = ventaSnap.data();
-
-          // read balances
-          const balancesRef = doc(db, "companies", companyId, "state", "balances");
-          const balancesSnap = await tx.get(balancesRef);
-          const balances = balancesSnap.exists() ? balancesSnap.data() : { cajaEmpresa: 0 };
-
-          // read all products (reads must be before writes)
-          const productos = [];
-          if (Array.isArray(venta.items)) {
-            for (const item of venta.items) {
-              const prodRef = doc(db, "companies", companyId, "inventory", item.productId);
-              const prodSnap = await tx.get(prodRef);
-              if (prodSnap.exists()) productos.push({ ref: prodRef, data: prodSnap.data(), item });
-            }
-          }
-
-          // --- now writes ---
-          // 1) Replenish stock
-          for (const { ref, data, item } of productos) {
-            const newStock = Number(data.stock || 0) + Number(item.qty || 0);
-            tx.update(ref, { stock: newStock });
-          }
-
-          // 2) Create movement egreso for audit (we remove money)
-          const totalVenta = Number(venta.total || 0);
-          const movRef = doc(collection(db, "companies", companyId, "movements"));
-          tx.set(movRef, {
-            tipo: "egreso",
-            cuenta: "cajaEmpresa",
-            fecha: new Date().toISOString().slice(0,10),
-            monto: totalVenta,
-            desc: `Eliminación venta ID ${ventaId}`,
-            saleId: ventaId,
-            createdAt: serverTimestamp()
-          });
-
-          // 3) Update balances doc
-          const newCaja = (Number(balances.cajaEmpresa || 0) - totalVenta);
-          if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
-          else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
-
-          // 4) delete sale
-          tx.delete(ventaRef);
-        });
-
-        alert("Venta eliminada correctamente y caja/stock ajustados.");
-      } catch (err) {
-        console.error("Error al eliminar venta:", err);
-        alert("Error al eliminar venta: " + (err.message || err));
-      }
-    }
-
-    /**************************************************************************
-     * INVENTORY: create / add stock / render
-     **************************************************************************/
-    function setupInventoryHandlers() {
-      $("#btnCreateProduct").addEventListener("click", async (e) => {
-        e.preventDefault();
-        await handleCreateProduct();
-      });
-    }
-
-    async function handleCreateProduct() {
-      const name = $("#prodName").value.trim();
-      if (!name) return alert("Nombre requerido");
-      const sku = $("#prodSku").value.trim() || null;
-      const gender = $("#prodGender").value.trim() || null;
-      const size = $("#prodSize").value.trim() || null;
-      const color = $("#prodColor").value.trim() || null;
-      const team = $("#prodTeam").value.trim() || null;
-      const cost = Number($("#prodCost").value || 0);
-      const price = Number($("#prodPrice").value || 0);
-      const initialStock = Number($("#prodInitialStock").value || 0);
-      const notes = $("#prodNotes").value.trim() || null;
-
-      try {
-        const newRef = doc(collection(db, "companies", companyId, "inventory"));
-        const productDoc = {
-          name, sku,
-          attributes: { gender, size, color, team },
-          cost, price, stock: initialStock, notes, createdAt: serverTimestamp()
-        };
-        await setDoc(newRef, productDoc);
-
-        // create batch + movement inside transaction for traceability
-        await runTransaction(db, async (tx) => {
-          const batchRef = doc(collection(db, "companies", companyId, "inventory", newRef.id, "batches"));
-          tx.set(batchRef, {
-            quantity_added: initialStock,
-            remaining: initialStock,
-            received_at: serverTimestamp(),
-            note: "Stock inicial"
-          });
-          const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
-          tx.set(movRef, {
-            productId: newRef.id,
-            qty: initialStock,
-            type: "in",
-            note: "Stock inicial",
-            refId: newRef.id,
-            createdAt: serverTimestamp()
-          });
-        });
-
-        // clear form
-        $("#prodName").value = "";
-        $("#prodSku").value = "";
-        $("#prodGender").value = "";
-        $("#prodSize").value = "";
-        $("#prodColor").value = "";
-        $("#prodTeam").value = "";
-        $("#prodCost").value = "";
-        $("#prodPrice").value = "";
-        $("#prodInitialStock").value = "";
-        $("#prodNotes").value = "";
-        alert("Producto creado correctamente");
-      } catch (err) {
-        console.error("handleCreateProduct error", err);
-        alert("Error creando producto: " + err.message);
-      }
-    }
-
-    function renderInventoryTable() {
-      const tb = $("#tbInventory");
-      if (!tb) return console.warn("#tbInventory no encontrado");
-      tb.innerHTML = "";
-      const arr = Array.from(inventoryCache.values());
-      if (!arr.length) {
-        tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay productos aún.</td></tr>`;
-        return;
-      }
-      arr.forEach(p => {
-        const attrs = [];
-        if (p.attributes?.gender) attrs.push(p.attributes.gender);
-        if (p.attributes?.size) attrs.push(p.attributes.size);
-        if (p.attributes?.color) attrs.push(p.attributes.color);
-        if (p.attributes?.team) attrs.push(p.attributes.team);
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><strong>${escapeHtml(p.name)}</strong><div class="text-xs text-slate-500">${p.sku || ''}</div></td>
-          <td class="small">${attrs.join(' • ')}</td>
-          <td>${money(p.price)}</td>
-          <td>${Number(p.stock || 0)}</td>
-          <td>
-            <button data-id="${p.id}" class="btnAddStock px-2 py-1 border rounded text-sm">+ Stock</button>
-            <button data-id="${p.id}" class="btnEditProduct px-2 py-1 border rounded text-sm">Editar</button>
-            <button data-id="${p.id}" class="btnDeleteProduct px-2 py-1 border rounded text-sm">Borrar</button>
-          </td>
-        `;
-        tb.appendChild(tr);
-      });
-
-      $$(".btnAddStock").forEach(b => b.onclick = (ev) => promptAddStock(ev.currentTarget.dataset.id));
-      $$(".btnDeleteProduct").forEach(b => b.onclick = (ev) => { if (confirm("Borrar producto?")) deleteProduct(ev.currentTarget.dataset.id); });
-      $$(".btnEditProduct").forEach(b => b.onclick = (ev) => editProductModal(ev.currentTarget.dataset.id));
-    }
-
-    async function promptAddStock(productId) {
-      const qtyStr = prompt("¿Cuántas unidades quieres añadir al stock?");
-      if (!qtyStr) return;
-      const qty = Number(qtyStr);
-      if (!qty || qty <= 0) return alert("Cantidad inválida");
-      const note = prompt("Nota (opcional)", "Producción semanal");
-
-      try {
-        await runTransaction(db, async (tx) => {
-          const prodRef = doc(db, "companies", companyId, "inventory", productId);
-          const prodSnap = await tx.get(prodRef);
-          if (!prodSnap.exists()) throw new Error("Producto no existe");
-          const oldStock = Number(prodSnap.data().stock || 0);
-          const newStock = oldStock + qty;
-          tx.update(prodRef, { stock: newStock });
-
-          const batchRef = doc(collection(db, "companies", companyId, "inventory", productId, "batches"));
-          tx.set(batchRef, { quantity_added: qty, remaining: qty, received_at: serverTimestamp(), note: note || null });
-
-          const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
-          tx.set(movRef, { productId, qty, type: "in", note: note || null, refId: batchRef.id, createdAt: serverTimestamp() });
-        });
-        alert("Stock actualizado");
-      } catch (err) {
-        console.error("promptAddStock error", err);
-        alert("Error en agregar stock: " + err.message);
-      }
-    }
-
-    async function deleteProduct(productId) {
-      try {
-        await deleteDoc(doc(db, "companies", companyId, "inventory", productId));
-        alert("Producto eliminado");
-      } catch (err) {
-        console.error(err);
-        alert("Error al eliminar");
-      }
-    }
-
-    function editProductModal(productId) {
-      const p = inventoryCache.get(productId);
-      if (!p) return alert("No encontrado");
-      const newPrice = prompt("Nuevo precio", p.price || 0);
-      if (newPrice === null) return;
-      const newCost = prompt("Nuevo costo", p.cost || 0);
-      if (newCost === null) return;
-      updateDoc(doc(db, "companies", companyId, "inventory", productId), { price: Number(newPrice), cost: Number(newCost) })
-        .then(() => alert("Producto actualizado")).catch(err => { console.error(err); alert("Error actualizando"); });
-    }
-
-    /**************************************************************************
-     * POS / VENTAS
-     * - createCartLine + advanced search + addProductToCart + submitSaleHandler
-     **************************************************************************/
-    function setupPosHandlers() {
-      $("#btnAddCartLine").onclick = () => createCartLine();
-      $("#btnClearCart").onclick = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
-      $("#btnSubmitSale").onclick = submitSaleHandler;
-      createCartLine();
-    }
-
-    // create cart line with select + search per row
-    function createCartLine() {
-      const tr = document.createElement("tr");
-      const selectHtml = `
-        <div>
-          <input type="text" class="prodSearch w-full border rounded p-1 mb-1" placeholder="Buscar producto (nombre, color, talla, sku...)">
-          <select class="prodSelect w-full border rounded p-1">
-            <option value="">-- seleccionar --</option>
-          </select>
-        </div>
-      `;
-      tr.innerHTML = `
-        <td>${selectHtml}</td>
-        <td><input type="number" class="lineQty border rounded p-1 w-24" min="1" value="1"></td>
-        <td><input type="number" class="linePrice border rounded p-1 w-32" min="0" step="0.01"></td>
-        <td class="lineSubtotal">${money(0)}</td>
-        <td><button class="btnRemoveLine px-2 py-1 border rounded">Eliminar</button></td>
-      `;
-      $("#cartBody").appendChild(tr);
-
-      const selectEl = tr.querySelector(".prodSelect");
-      populateProductSelectElement(selectEl);
-
-      // per-row search filters options
-      const searchInput = tr.querySelector(".prodSearch");
-      searchInput.addEventListener("input", () => {
-        const q = searchInput.value.trim().toLowerCase();
-        Array.from(selectEl.options).forEach(opt => {
-          if (!opt.value) { opt.hidden = false; return; }
-          opt.hidden = q ? !opt.text.toLowerCase().includes(q) : false;
-        });
-      });
-      searchInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          const first = Array.from(selectEl.options).find(o => !o.hidden && o.value);
-          if (first) { selectEl.value = first.value; selectEl.dispatchEvent(new Event('change')); }
-        }
-      });
-
-      selectEl.onchange = (e) => {
-        const pid = e.target.value;
-        if (!pid) {
-          tr.querySelector(".linePrice").value = 0;
-          tr.querySelector(".lineQty").value = 1;
-          updateLineSubtotal(tr);
-          return;
-        }
-        const p = inventoryCache.get(pid);
-        tr.dataset.productId = pid;
-        tr.querySelector(".linePrice").value = p.price || 0;
-        tr.querySelector(".lineQty").value = 1;
-        updateLineSubtotal(tr);
-      };
-
-      tr.querySelector(".lineQty").oninput = () => updateLineSubtotal(tr);
-      tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
-      tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
-    }
-
-    function populateProductSelectElement(selectEl) {
-      selectEl.innerHTML = `<option value="">-- seleccionar --</option>`;
-      Array.from(inventoryCache.values()).forEach(p => {
-        const opt = document.createElement("option");
-        opt.value = p.id;
-        const attrs = [];
-        if (p.attributes?.gender) attrs.push(p.attributes.gender);
-        if (p.attributes?.size) attrs.push(p.attributes.size);
-        if (p.attributes?.color) attrs.push(p.attributes.color);
-        if (p.attributes?.team) attrs.push(p.attributes.team);
-        const skuPart = p.sku ? ` SKU:${p.sku}` : '';
-        opt.text = `${p.name} ${attrs.length ? "(" + attrs.join(" • ") + ")" : ""}${skuPart} — Stock: ${p.stock || 0}`;
-        selectEl.appendChild(opt);
-      });
-    }
-
-    function populateProductSelects() {
-      $$(".prodSelect").forEach(sel => {
-        const currentValue = sel.value || "";
-        populateProductSelectElement(sel);
-        if (currentValue) sel.value = currentValue;
-      });
-    }
-
-    function updateLineSubtotal(tr) {
-      const q = Number(tr.querySelector(".lineQty").value || 0);
-      const p = Number(tr.querySelector(".linePrice").value || 0);
-      const sub = q * p;
-      tr.querySelector(".lineSubtotal").textContent = money(sub);
-      updateCartTotal();
-    }
-
-    function updateCartTotal() {
-      const tbody = $("#cartBody");
-      if (!tbody) return;
-      const rows = Array.from(tbody.querySelectorAll("tr"));
-      let total = 0;
-      rows.forEach(r => {
-        const subStr = r.querySelector(".lineSubtotal").textContent || "$0";
-        const sub = Number(subStr.replace(/\$/g,'').replace(/\./g,'').replace(/\,/g,'.')) || 0;
-        total += sub;
-      });
-      $("#cartTotal").textContent = money(total);
-    }
-
-    /**************************************************************************
-     * submitSaleHandler: transaction that reads all docs first, then writes.
-     **************************************************************************/
-    async function submitSaleHandler() {
-      const rows = Array.from($("#cartBody").querySelectorAll("tr"));
-      if (!rows.length) return alert("El carrito está vacío");
-
-      const items = [];
-      for (const r of rows) {
-        const pid = r.dataset.productId;
-        if (!pid) return alert("Selecciona producto en todas las líneas");
-        const qty = Number(r.querySelector(".lineQty").value || 0);
-        const price = Number(r.querySelector(".linePrice").value || 0);
-        if (qty <= 0) return alert("Cantidad inválida");
-        const prod = inventoryCache.get(pid);
-        if (!prod) return alert("Producto no encontrado (recarga)");
-        items.push({ productId: pid, name: prod.name, qty, price });
-      }
-      const total = items.reduce((s, it) => s + (it.qty * it.price), 0);
-
-      const saleDoc = {
-        createdAt: serverTimestamp(),
-        createdBy: currentUser.uid,
-        client: $("#saleClient").value.trim() || null,
-        type: $("#saleType").value,
-        channel: $("#saleChannel").value,
-        total,
-        items
-      };
-
-      try {
-        await runTransaction(db, async (tx) => {
-          // 1) reads (all products)
-          const prodSnaps = {};
-          for (const it of items) {
-            const prodRef = doc(db, "companies", companyId, "inventory", it.productId);
-            const snap = await tx.get(prodRef);
-            if (!snap.exists()) throw new Error(`Producto ${it.name} no existe (id=${it.productId})`);
-            prodSnaps[it.productId] = { ref: prodRef, data: snap.data() };
-          }
-
-          // read balances
-          const balancesRef = doc(db, "companies", companyId, "state", "balances");
-          const balancesSnap = await tx.get(balancesRef);
-          const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
-
-          // validate stock
-          for (const it of items) {
-            const currentStock = Number(prodSnaps[it.productId].data.stock || 0);
-            if (currentStock < it.qty) throw new Error(`Stock insuficiente para ${it.name}. Disponible: ${currentStock}`);
-          }
-
-          // 2) writes
-          // update stock
-          for (const it of items) {
-            const prodRef = prodSnaps[it.productId].ref;
-            const currentStock = Number(prodSnaps[it.productId].data.stock || 0);
-            const newStock = currentStock - it.qty;
-            tx.update(prodRef, { stock: newStock });
-          }
-
-          // create sale doc
-          const saleRef = doc(collection(db, "companies", companyId, "sales"));
-          tx.set(saleRef, saleDoc);
-
-          // create stock_movements
-          for (const it of items) {
-            const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
-            tx.set(movRef, {
-              productId: it.productId,
-              qty: -it.qty,
-              type: "out",
-              note: `Venta (${it.qty} x ${it.name})`,
-              refId: saleRef.id,
-              createdAt: serverTimestamp()
-            });
-          }
-
-          // create movement cash (ingreso)
-          const movCajaRef = doc(collection(db, "companies", companyId, "movements"));
-          tx.set(movCajaRef, {
-            tipo: "ingreso",
-            cuenta: "cajaEmpresa",
-            fecha: new Date().toISOString().slice(0,10),
-            monto: total,
-            desc: `Venta total ID ${saleRef.id}`,
-            saleId: saleRef.id,
-            createdAt: serverTimestamp()
-          });
-
-          // update balances.cajaEmpresa
-          const newCaja = oldCaja + Number(total || 0);
-          if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
-          else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
-        });
-
-        alert("Venta registrada correctamente");
-        $("#cartBody").innerHTML = "";
-        updateCartTotal();
-      } catch (err) {
-        console.error("submitSaleHandler error:", err);
-        alert("Error al crear venta: " + (err.message || err));
-      }
-    }
-
-    /**************************************************************************
-     * RENDER ventas (lista)
-     **************************************************************************/
-    function renderSalesTable() {
-      const tbody = document.querySelector("#tbVentas");
-      if (!tbody) return console.warn("tbody #tbVentas no encontrado");
-      tbody.innerHTML = "";
-
-      salesCache.forEach(sale => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td class="border px-2 py-1">${new Date(sale.createdAt?.toDate?.() || Date.now()).toLocaleString()}</td>
-          <td class="border px-2 py-1">${sale.client || '-'}</td>
-          <td class="border px-2 py-1">${money(sale.total)}</td>
-          <td class="border px-2 py-1">${(sale.items || []).map(i => `${i.qty} x ${i.name}`).join("<br>")}</td>
-          <td class="border px-2 py-1">
-            <button class="bg-red-500 text-white px-2 py-1 rounded text-xs delete-sale" data-id="${sale.id}">Eliminar</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-
-      // attach delete buttons
-      $$(".delete-sale").forEach(btn => {
-        btn.onclick = async () => {
-          const saleId = btn.dataset.id;
-          if (confirm("¿Seguro que deseas eliminar esta venta?")) await deleteSale(saleId);
-        };
-      });
-    }
-
-    /**************************************************************************
-     * CHARTS
-     **************************************************************************/
-    let chartTopProducts = null;
-    let chartVentasPorDia = null;
-
-    function setupCharts() {
-      try {
-        const ctx1 = document.getElementById("chartTopProducts").getContext("2d");
-        chartTopProducts = new Chart(ctx1, { type: 'bar', data: { labels: [], datasets: [{ label: 'Vendidos', data: [], backgroundColor: 'rgba(16,185,129,0.8)' }] }, options: {} });
-        const ctx2 = document.getElementById("chartVentasPorDia").getContext("2d");
-        chartVentasPorDia = new Chart(ctx2, { type: 'line', data: { labels: [], datasets: [{ label: 'Ventas', data: [], borderColor: 'rgba(15,118,110,1)', backgroundColor: 'rgba(15,118,110,0.2)' }] }, options: {} });
-      } catch (err) {
-        console.warn("Charts init error (canvas missing?):", err);
-      }
-    }
-
-    function updateCharts() {
-      // Top products
-      const counter = {};
-      salesCache.forEach(s => (s.items||[]).forEach(it => counter[it.productId] = (counter[it.productId]||0) + it.qty));
-      const top = Object.entries(counter).sort((a,b)=> b[1]-a[1]).slice(0,8);
-      const labels = top.map(([pid]) => { const p = inventoryCache.get(pid); return p ? `${p.name} ${p.attributes?.size||''} ${p.attributes?.color||''}` : pid; });
-      const data = top.map(([_,qty]) => qty);
-      if (chartTopProducts) { chartTopProducts.data.labels = labels; chartTopProducts.data.datasets[0].data = data; chartTopProducts.update(); }
-
-      // ventas por día (últimos 30)
-      const mapDays = {};
-      const now = new Date();
-      for (let i=29;i>=0;i--) { const d = new Date(now); d.setDate(now.getDate()-i); mapDays[d.toISOString().slice(0,10)] = 0; }
-      salesCache.forEach(s => {
-        const key = s.createdAt?.seconds ? new Date(s.createdAt.seconds*1000).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
-        if (mapDays[key] !== undefined) mapDays[key] += Number(s.total || 0);
-      });
-      if (chartVentasPorDia) { chartVentasPorDia.data.labels = Object.keys(mapDays); chartVentasPorDia.data.datasets[0].data = Object.values(mapDays); chartVentasPorDia.update(); }
-    }
-
-    /**************************************************************************
-     * Caja por rango: simple (descarga movimientos y filtra en cliente)
-     * Esto evita problemas de índices / Timestamp en consultas compuestas
-     **************************************************************************/
-    async function computeCajaTotal(fromDate, toDate) {
-      try {
-        const movCol = collection(db, "companies", companyId, "movements");
-        const snap = await getDocs(movCol); // traer todos y filtrar cliente-side
-        let total = 0;
-        snap.forEach(d => {
-          const md = d.data();
-          // createdAt puede ser Timestamp; convertir a ms
-          let tsMs = Date.now();
-          if (md.createdAt && md.createdAt.seconds) tsMs = md.createdAt.seconds * 1000;
-          else if (md.createdAt && md.createdAt.toMillis) tsMs = md.createdAt.toMillis();
-          const date = new Date(tsMs);
-          if (date >= fromDate && date <= toDate) {
-            const m = Number(md.monto || 0);
-            total += (md.tipo === "egreso") ? -m : m;
-          }
-        });
-        return total;
-      } catch (err) {
-        console.error("computeCajaTotal error:", err);
-        throw err;
-      }
-    }
-
-    function formatDateForLabel(d) { return d.toISOString().slice(0,10); }
-
-    function setupCajaControls() {
-      $("#btnCajaCustomToggle").onclick = () => $("#cajaCustom").classList.toggle("hidden");
-
-      $("#btnCajaHoy").onclick = async () => {
-        const today = new Date();
-        const from = new Date(today); from.setHours(0,0,0,0);
-        const to = new Date(today); to.setHours(23,59,59,999);
-        try { const total = await computeCajaTotal(from, to); $("#kpiCajaRangeResult").textContent = `Caja hoy (${formatDateForLabel(from)}): ${money(total)}`; } catch (err) { alert("Error calculando caja hoy: " + err.message); }
-      };
-
-      $("#btnCaja7d").onclick = async () => {
-        const today = new Date();
-        const from = new Date(today); from.setDate(today.getDate() - 6); from.setHours(0,0,0,0);
-        const to = new Date(today); to.setHours(23,59,59,999);
-        try { const total = await computeCajaTotal(from, to); $("#kpiCajaRangeResult").textContent = `Caja últimos 7 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`; } catch (err) { alert("Error calculando 7 días: " + err.message); }
-      };
-
-      $("#btnCaja30d").onclick = async () => {
-        const today = new Date();
-        const from = new Date(today); from.setDate(today.getDate() - 29); from.setHours(0,0,0,0);
-        const to = new Date(today); to.setHours(23,59,59,999);
-        try { const total = await computeCajaTotal(from, to); $("#kpiCajaRangeResult").textContent = `Caja últimos 30 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`; } catch (err) { alert("Error calculando 30 días: " + err.message); }
-      };
-
-      $("#btnCajaCustom").onclick = async () => {
-        const fromStr = $("#cajaFrom").value; const toStr = $("#cajaTo").value;
-        if (!fromStr || !toStr) return alert("Selecciona ambas fechas");
-        const from = new Date(fromStr); from.setHours(0,0,0,0);
-        const to = new Date(toStr); to.setHours(23,59,59,999);
-        if (to < from) return alert("Rango inválido");
-        try { const total = await computeCajaTotal(from, to); $("#kpiCajaRangeResult").textContent = `Caja (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`; } catch (err) { alert("Error calculando rango: " + err.message); }
-      };
-    }
-
-    /**************************************************************************
-     * UTIL: escapeHtml + normalize search
-     **************************************************************************/
-    function escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c])); }
-
-    function normalizeForSearch(str) {
-      if (!str) return "";
-      return String(str).normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-    }
-
-    /**************************************************************************
-     * POS global search box (top) -> connects to inventoryCache and adds to cart
-     **************************************************************************/
-    function setupPosSearch() {
-      const input = $("#posSearchInput");
-      const resultsDiv = $("#posSearchResults");
-      if (!input || !resultsDiv) return;
-
-      document.addEventListener("click", (ev) => {
-        const isInside = resultsDiv.contains(ev.target) || input.contains(ev.target);
-        if (!isInside) resultsDiv.classList.add("hidden");
-      });
-
-      input.oninput = () => {
-        const q = normalizeForSearch(input.value.trim());
-        resultsDiv.innerHTML = "";
-        if (!q) { resultsDiv.classList.add("hidden"); return; }
-
-        const matches = Array.from(inventoryCache.values()).filter(p => {
-          const haystack = [
-            p.name, p.sku,
-            p.attributes?.gender, p.attributes?.size, p.attributes?.color, p.attributes?.team
-          ].filter(Boolean).map(normalizeForSearch).join(" ");
-          return haystack.includes(q);
-        });
-
-        if (!matches.length) {
-          resultsDiv.innerHTML = `<div class="p-2 text-slate-500">Sin resultados</div>`; resultsDiv.classList.remove("hidden"); return;
-        }
-
-        matches.forEach(p => {
-          const div = document.createElement("div");
-          div.className = "p-2 hover:bg-slate-100 cursor-pointer text-sm";
-          div.dataset.pid = p.id;
-          const attrs = [];
-          if (p.attributes?.gender) attrs.push(p.attributes.gender);
-          if (p.attributes?.size) attrs.push(p.attributes.size);
-          if (p.attributes?.color) attrs.push(p.attributes.color);
-          if (p.attributes?.team) attrs.push(p.attributes.team);
-          div.textContent = `${p.name}${attrs.length ? " (" + attrs.join(" • ") + ")" : ""} — Stock: ${p.stock || 0}`;
-          div.onclick = () => {
-            addProductToCart(p.id);
-            resultsDiv.classList.add("hidden");
-            input.value = "";
-          };
-          resultsDiv.appendChild(div);
-        });
-        resultsDiv.classList.remove("hidden");
-      };
-
-      input.onkeydown = (ev) => {
-        if (ev.key === "Enter") {
-          const candidate = resultsDiv.querySelector("div[data-pid]");
-          if (candidate) { addProductToCart(candidate.dataset.pid); resultsDiv.classList.add("hidden"); input.value = ""; ev.preventDefault(); }
-        }
-      };
-    }
-
-    function addProductToCart(productId) {
-      const prod = inventoryCache.get(productId);
-      if (!prod) return alert("Producto no encontrado");
-
-      const tr = document.createElement("tr");
-      tr.dataset.productId = productId;
-      tr.innerHTML = `
-        <td>${escapeHtml(prod.name)}</td>
-        <td><input type="number" class="lineQty border rounded p-1 w-24" min="1" value="1"></td>
-        <td><input type="number" class="linePrice border rounded p-1 w-32" min="0" step="0.01" value="${Number(prod.price || 0)}"></td>
-        <td class="lineSubtotal">${money(Number(prod.price || 0))}</td>
-        <td><button class="btnRemoveLine px-2 py-1 border rounded">Eliminar</button></td>
-      `;
-      $("#cartBody").appendChild(tr);
-
-      tr.querySelector(".lineQty").oninput   = () => updateLineSubtotal(tr);
-      tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
-      tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
-
-      updateLineSubtotal(tr);
-    }
-
-    // Debug helpers
-    window._dbg = { db, inventoryCache, salesCache, runTransaction };
-
   </script>
 </body>
 </html>
