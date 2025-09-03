@@ -223,14 +223,14 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 /* ======================
-   ROLE handling
+   ROLE handling AQUI ELIJO QUE VE CADA EMPLEADO  Y QUE NO
    ====================== */
 function applyRoleVisibility() {
   if (userRole === "empleado") {
     // empleado: solo ventas y gastos
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
-      btn.style.display = (t === "ventas" || t === "gastos") ? "" : "none";
+      btn.style.display = (t === "ventas" || t === "gastos" || t === "inventario" ) ? "" : "none";
     });
     $("[data-tab='ventas']").click();
   } else {
