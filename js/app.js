@@ -1,15 +1,5 @@
-/**************************************************************************
- * app.js - completo (multi-tenant) - usa Firebase modular SDK
- *
- * Instrucciones rápidas:
- *  - Crea y despliega la Cloud Function (ver más abajo) y copia la URL
- *  - Si la variable CREATE_EMPLOYEE_ENDPOINT está vacía, verás instrucción
- *    para desplegar; el fallback intenta crear usuario cliente-side (no recomendado)
- **************************************************************************/
+// app.js (reemplaza todo el archivo js/app.js con esto)
 
-/**************************************************************************
- * FIREBASE CONFIG - reemplaza con tu config si hace falta
- **************************************************************************/
 const firebaseConfig = {
   apiKey: "AIzaSyCTFSlLoKv6KKujTqjMeMjNc-AlKQ2-rng",
   authDomain: "duostyle01-611b9.firebaseapp.com",
@@ -20,13 +10,13 @@ const firebaseConfig = {
   measurementId: "G-FW6QEJMZKT"
 };
 
-/**************************************************************************
- * IMPORTS (Firebase modular SDK)
- **************************************************************************/
+/* ======================
+   IMPORTS (Firebase modular SDK)
+   ====================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, signOut, updateProfile, signInWithCredential, EmailAuthProvider
+  createUserWithEmailAndPassword, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
 
 import {
@@ -35,110 +25,104 @@ import {
   runTransaction, where, limit
 } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
-/**************************************************************************
- * INIT
- **************************************************************************/
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
+
+/* ======================
+   INIT
+   ====================== */
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db   = getFirestore(app);
+const db = getFirestore(app);
+const functions = getFunctions(app);
 
-/**************************************************************************
- * Small config for employee creation endpoint
- * - PREFERIBLE: deployar un Cloud Function que use Firebase Admin SDK y
- *   exponerla aquí (CREATE_EMPLOYEE_ENDPOINT).
- * - Si no la usas, verás un fallback (cliente-side) que NO ES RECOMENDADO
- *   porque creará el usuario y te desconectará del admin.
- **************************************************************************/
-const CREATE_EMPLOYEE_ENDPOINT = ""; // <-- pega aquí la URL de tu Cloud Function si la tienes
-
-/**************************************************************************
- * HELPERS UI
- **************************************************************************/
+/* ======================
+   HELPERS UI
+   ====================== */
 const $  = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const money = n => `$${Number(n||0).toLocaleString('es-CO',{maximumFractionDigits:2})}`;
 
-/**************************************************************************
- * STATE
- **************************************************************************/
-let currentUser   = null;
-let companyId     = null;            // Para admin: `${uid}-company`. Para empleado: users/{uid}.companyId
+/* ======================
+   STATE
+   ====================== */
+let currentUser = null;
+let companyId = null;
 let unsubscribers = [];
 let inventoryCache = new Map();
-let salesCache     = [];
-let userRole       = "admin";        // 'admin' | 'empleado'
+let salesCache = [];
+let userRole = "admin"; // 'admin' | 'empleado'
 
-/**************************************************************************
- * AUTH: login / register (UI)
- **************************************************************************/
+/* ======================
+   AUTH: login / register (UI)
+   - Nota: dejamos el registro por cliente solo para ADMIN.
+   - Crear EMPLEADOS debe hacerlo el ADMIN desde el panel (usa Cloud Function).
+   ====================== */
 $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = $("#loginEmail").value.trim();
-  const pass  = $("#loginPass").value.trim();
-  try { await signInWithEmailAndPassword(auth, email, pass); }
-  catch (err) { alert("Error login: " + err.message); }
+  const pass = $("#loginPass").value.trim();
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch (err) {
+    alert("Error login: " + err.message);
+  }
 });
 
-// Register form: keep creating admin/empleado but admin-side preferred to create
 $("#registerForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = $("#regName").value.trim();
   const email = $("#regEmail").value.trim();
-  const pass  = $("#regPass").value.trim();
-  const role  = $("#regRole").value || "admin";
+  const pass = $("#regPass").value.trim();
+  const role = $("#regRole").value || "admin";
+
+  if (role === "empleado") {
+    alert("Los empleados deben ser creados por un administrador desde el panel (no por registro público).");
+    return;
+  }
 
   try {
-    // If employee: require companyId and invite code fields existed before.
-    // But we removed invites: still allow employee to self-register if they provide companyId.
-    let resolvedCompanyId = null;
-    if (role === "empleado") {
-      const cid = ($("#regCompanyCode")?.value || "").trim();
-      if (!cid) return alert("Debes indicar el Código de Empresa (pídeselo al admin).");
-      resolvedCompanyId = cid;
-    }
-
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(cred.user, { displayName: name });
 
-    // create user doc
-    const userDoc = {
-      displayName: name, email, role, planActive: true,
-      companyId: role === "empleado" ? resolvedCompanyId : `${cred.user.uid}-company`,
+    // usuario doc
+    const uid = cred.user.uid;
+    const cid = `${uid}-company`;
+    await setDoc(doc(db, "users", uid), {
+      displayName: name,
+      email,
+      role: "admin",
+      planActive: true,
+      companyId: cid,
       createdAt: serverTimestamp()
-    };
-    await setDoc(doc(db, "users", cred.user.uid), userDoc);
+    });
 
-    // If admin: create company doc for them
-    if (role === "admin") {
-      const cid = `${cred.user.uid}-company`;
-      await setDoc(doc(db, "companies", cid), {
-        name: `${name} — Empresa`,
-        owners: [{ uid: cred.user.uid, name }],
-        createdAt: serverTimestamp(),
-        planActive: true
-      });
-      await setDoc(doc(db, "companies", cid, "state", "balances"), { cajaEmpresa: 0, deudasTotales: 0 });
-      alert("Cuenta de administrador creada. Inicia sesión para continuar.");
-      // sign out the just-created user so they can log in normally (we don't auto-login here)
-      await signOut(auth);
-    } else {
-      alert("Cuenta de empleado creada. Ahora puedes iniciar sesión (si la empresa existe).");
-      await signOut(auth);
-    }
+    // company doc
+    await setDoc(doc(db, "companies", cid), {
+      name: `${name} — Empresa`,
+      owners: [{ uid, name }],
+      createdAt: serverTimestamp(),
+      planActive: true
+    });
+
+    // balances iniciales
+    await setDoc(doc(db, "companies", cid, "state", "balances"), { cajaEmpresa: 0, deudasTotales: 0 });
+
+    alert("Cuenta de administrador creada. Inicia sesión.");
+    // No forzamos logout aquí (ya está autenticado)
   } catch (err) {
-    console.error("register error", err);
-    alert("Error creando cuenta: " + err.message);
+    console.error("register error:", err);
+    alert("Error creating account: " + err.message);
   }
 });
 
 $("#btnLogout").addEventListener("click", () => signOut(auth));
 
-/**************************************************************************
- * onAuthStateChanged: MULTI-TENANT + planActive + role
- **************************************************************************/
+/* ======================
+   onAuthStateChanged: multi-tenant + planActive + role
+   ====================== */
 onAuthStateChanged(auth, async (user) => {
-  // limpiar subscripciones
   currentUser = user;
+  // cleanup subs
   unsubscribers.forEach(u => u && u());
   unsubscribers = [];
   inventoryCache.clear();
@@ -153,23 +137,25 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   try {
-    // Leer user doc
-    const userDocRef = doc(db, "users", user.uid);
-    if (!(await getDoc(userDocRef)).exists()) {
-      // fallback mínimo
-      await setDoc(userDocRef, {
+    // load user doc (if missing, create minimal fallback)
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      // fallback (this should be rare)
+      await setDoc(userRef, {
         displayName: user.displayName || "User",
-        email: user.email, role: "admin", planActive: true,
-        companyId: `${user.uid}-company`, createdAt: serverTimestamp()
+        email: user.email || null,
+        role: "admin",
+        planActive: true,
+        companyId: `${user.uid}-company`,
+        createdAt: serverTimestamp()
       });
     }
-    const userData = (await getDoc(userDocRef)).data();
+    const userData = (await getDoc(userRef)).data();
     userRole = userData?.role || "admin";
-
-    // Determinar companyId: admin usa la suya; empleado usa la del admin
     companyId = userData?.companyId || `${user.uid}-company`;
 
-    // Company doc (crear si falta para admin)
+    // load company doc (create if missing)
     const compRef = doc(db, "companies", companyId);
     if (!(await getDoc(compRef)).exists()) {
       await setDoc(compRef, {
@@ -178,27 +164,25 @@ onAuthStateChanged(auth, async (user) => {
         createdAt: serverTimestamp(),
         planActive: true
       });
-      await setDoc(doc(db, "companies", companyId, "state", "balances"), {
-        cajaEmpresa: 0, deudasTotales: 0
-      });
+      await setDoc(doc(db, "companies", companyId, "state", "balances"), { cajaEmpresa: 0, deudasTotales: 0 });
     }
     const compData = (await getDoc(compRef)).data();
 
-    // Validar plan
+    // check planActive
     if (compData && compData.planActive === false) {
       alert("⚠️ Esta empresa está INACTIVA. Contacta soporte.");
       await signOut(auth);
       return;
     }
 
-    // Mostrar UI
+    // show UI
     $("#authView").classList.add("hidden");
     $("#mainView").classList.remove("hidden");
     $("#companyName").textContent = compData?.name || "Empresa — Demo";
-    $("#userRole").textContent   = `Rol: ${userRole}`;
-    if ($("#companyIdLabel")) $("#companyIdLabel").textContent = companyId;
+    $("#userRole").textContent = `Rol: ${userRole}`;
+    const lbl = $("#companyIdLabel"); if (lbl) lbl.textContent = companyId;
 
-    // Listener "en caliente" de planActive
+    // realtime listener company -> sign out if planActive switches to false
     const unsubComp = onSnapshot(compRef, snap => {
       const d = snap.exists() ? snap.data() : null;
       if (d && d.planActive === false) {
@@ -208,7 +192,7 @@ onAuthStateChanged(auth, async (user) => {
     });
     unsubscribers.push(unsubComp);
 
-    // Inicializar UI + subs
+    // init UI & subs
     setupTabs();
     setupInventoryHandlers();
     setupPosHandlers();
@@ -216,7 +200,6 @@ onAuthStateChanged(auth, async (user) => {
     setupCharts();
     setupCajaControls();
     setupGastosHandlers();
-    setupUsersHandlers(); // admin user creation panel
 
     subscribeInventory();
     subscribeSales();
@@ -225,21 +208,26 @@ onAuthStateChanged(auth, async (user) => {
     await loadGastosOnce();
     await loadMovimientos("7d");
 
-    // mostrar/ocultar según rol
+    // users (admin functions) - render list & hook create employee
+    setupUsersHandlers();
+    subscribeUsersIfAdmin();
+
+    // role-based UI
     applyRoleVisibility();
 
   } catch (err) {
     console.error("onAuthStateChanged error:", err);
-    try { await signOut(auth); } catch (e){}
+    try { await signOut(auth); } catch(e) {}
     alert("Error verificando cuenta. Intenta de nuevo.");
   }
 });
 
-/**************************************************************************
- * ROLE handling (visibilidad)
- **************************************************************************/
+/* ======================
+   ROLE handling
+   ====================== */
 function applyRoleVisibility() {
   if (userRole === "empleado") {
+    // empleado: solo ventas y gastos
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
       btn.style.display = (t === "ventas" || t === "gastos") ? "" : "none";
@@ -250,9 +238,9 @@ function applyRoleVisibility() {
   }
 }
 
-/**************************************************************************
- * TABS UI
- **************************************************************************/
+/* ======================
+   TABS UI
+   ====================== */
 function setupTabs() {
   $$(".tab-btn").forEach(btn => {
     btn.onclick = () => {
@@ -260,15 +248,16 @@ function setupTabs() {
       $$(".tab-btn").forEach(b => b.classList.remove("bg-slate-900","text-white"));
       btn.classList.add("bg-slate-900","text-white");
       $$(".tab").forEach(t => t.classList.add("hidden"));
-      const tabEl = $(`#tab-${id}`); if (tabEl) tabEl.classList.remove("hidden");
+      const el = $(`#tab-${id}`);
+      if (el) el.classList.remove("hidden");
     };
   });
   $("[data-tab='ventas']").click();
 }
 
-/**************************************************************************
- * SUBSCRIPTIONS
- **************************************************************************/
+/* ======================
+   SUBSCRIPTIONS (inventory / sales / balances)
+   ====================== */
 function subscribeInventory() {
   const invCol = collection(db, "companies", companyId, "inventory");
   const q = query(invCol, orderBy("name"));
@@ -312,7 +301,7 @@ function subscribeBalances() {
   const unsub = onSnapshot(ref, snap => {
     const d = snap.exists() ? snap.data() : {};
     $("#kpiCajaEmpresa").textContent = money(d.cajaEmpresa || 0);
-    $("#kpiDeudas").textContent      = money(d.deudasTotales || 0);
+    $("#kpiDeudas").textContent = money(d.deudasTotales || 0);
   });
   unsubscribers.push(unsub);
 }
@@ -323,11 +312,11 @@ function updateInventarioKPI() {
   $("#kpiInventarioTotal").textContent = total;
 }
 
-/**************************************************************************
- * INVENTARIO CRUD (igual que antes)
- **************************************************************************/
+/* ======================
+   INVENTORY CRUD
+   ====================== */
 function setupInventoryHandlers() {
-  $("#btnCreateProduct").addEventListener("click", async (e) => {
+  $("#btnCreateProduct")?.addEventListener("click", async (e) => {
     e.preventDefault();
     await handleCreateProduct();
   });
@@ -336,12 +325,12 @@ function setupInventoryHandlers() {
 async function handleCreateProduct() {
   const name = $("#prodName").value.trim();
   if (!name) return alert("Nombre requerido");
-  const sku   = $("#prodSku").value.trim() || null;
-  const gender= $("#prodGender").value.trim() || null;
-  const size  = $("#prodSize").value.trim() || null;
+  const sku = $("#prodSku").value.trim() || null;
+  const gender = $("#prodGender").value.trim() || null;
+  const size = $("#prodSize").value.trim() || null;
   const color = $("#prodColor").value.trim() || null;
-  const team  = $("#prodTeam").value.trim() || null;
-  const cost  = Number($("#prodCost").value || 0);
+  const team = $("#prodTeam").value.trim() || null;
+  const cost = Number($("#prodCost").value || 0);
   const price = Number($("#prodPrice").value || 0);
   const initialStock = Number($("#prodInitialStock").value || 0);
   const notes = $("#prodNotes").value.trim() || null;
@@ -360,7 +349,8 @@ async function handleCreateProduct() {
       tx.set(movRef, { productId: newRef.id, qty: initialStock, type: "in", note: "Stock inicial", refId: newRef.id, createdAt: serverTimestamp() });
     });
 
-    ["#prodName","#prodSku","#prodGender","#prodSize","#prodColor","#prodTeam","#prodCost","#prodPrice","#prodInitialStock","#prodNotes"].forEach(s => { if ($(s)) $(s).value=""; });
+    // limpiar
+    ["#prodName","#prodSku","#prodGender","#prodSize","#prodColor","#prodTeam","#prodCost","#prodPrice","#prodInitialStock","#prodNotes"].forEach(s => { try { $(s).value=""; } catch(e){} });
     alert("Producto creado correctamente");
   } catch (err) {
     console.error("handleCreateProduct error", err);
@@ -380,9 +370,9 @@ function renderInventoryTable() {
   arr.forEach(p => {
     const attrs = [];
     if (p.attributes?.gender) attrs.push(p.attributes.gender);
-    if (p.attributes?.size)   attrs.push(p.attributes.size);
-    if (p.attributes?.color)  attrs.push(p.attributes.color);
-    if (p.attributes?.team)   attrs.push(p.attributes.team);
+    if (p.attributes?.size) attrs.push(p.attributes.size);
+    if (p.attributes?.color) attrs.push(p.attributes.color);
+    if (p.attributes?.team) attrs.push(p.attributes.team);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${escapeHtml(p.name)}</strong><div class="text-xs text-slate-500">${p.sku || ''}</div></td>
@@ -446,20 +436,19 @@ function editProductModal(productId) {
   if (!p) return alert("No encontrado");
   const newPrice = prompt("Nuevo precio", p.price || 0);
   if (newPrice === null) return;
-  const newCost  = prompt("Nuevo costo", p.cost || 0);
+  const newCost = prompt("Nuevo costo", p.cost || 0);
   if (newCost === null) return;
   updateDoc(doc(db, "companies", companyId, "inventory", productId), { price: Number(newPrice), cost: Number(newCost) })
-    .then(() => alert("Producto actualizado"))
-    .catch(err => { console.error(err); alert("Error actualizando"); });
+    .then(() => alert("Producto actualizado")).catch(err => { console.error(err); alert("Error actualizando"); });
 }
 
-/**************************************************************************
- * POS / VENTAS
- **************************************************************************/
+/* ======================
+   POS / VENTAS
+   ====================== */
 function setupPosHandlers() {
   $("#btnAddCartLine").onclick = () => createCartLine();
-  $("#btnClearCart").onclick   = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
-  $("#btnSubmitSale").onclick  = submitSaleHandler;
+  $("#btnClearCart").onclick = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
+  $("#btnSubmitSale").onclick = submitSaleHandler;
   createCartLine(); // línea por defecto
 }
 
@@ -482,7 +471,7 @@ function createCartLine() {
   `;
   $("#cartBody").appendChild(tr);
 
-  const selectEl    = tr.querySelector(".prodSelect");
+  const selectEl = tr.querySelector(".prodSelect");
   const searchInput = tr.querySelector(".prodSearch");
   populateProductSelectElement(selectEl);
 
@@ -508,18 +497,18 @@ function createCartLine() {
     const pid = e.target.value;
     if (!pid) {
       tr.querySelector(".linePrice").value = 0;
-      tr.querySelector(".lineQty").value   = 1;
+      tr.querySelector(".lineQty").value = 1;
       updateLineSubtotal(tr);
       return;
     }
     const p = inventoryCache.get(pid);
     tr.dataset.productId = pid;
     tr.querySelector(".linePrice").value = p.price || 0;
-    tr.querySelector(".lineQty").value   = 1;
+    tr.querySelector(".lineQty").value = 1;
     updateLineSubtotal(tr);
   };
 
-  tr.querySelector(".lineQty").oninput   = () => updateLineSubtotal(tr);
+  tr.querySelector(".lineQty").oninput = () => updateLineSubtotal(tr);
   tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
   tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
 }
@@ -532,9 +521,9 @@ function populateProductSelectElement(selectEl) {
     opt.value = p.id;
     const attrs = [];
     if (p.attributes?.gender) attrs.push(p.attributes.gender);
-    if (p.attributes?.size)   attrs.push(p.attributes.size);
-    if (p.attributes?.color)  attrs.push(p.attributes.color);
-    if (p.attributes?.team)   attrs.push(p.attributes.team);
+    if (p.attributes?.size) attrs.push(p.attributes.size);
+    if (p.attributes?.color) attrs.push(p.attributes.color);
+    if (p.attributes?.team) attrs.push(p.attributes.team);
     const skuPart = p.sku ? ` SKU:${p.sku}` : '';
     opt.text = `${p.name} ${attrs.length ? "(" + attrs.join(" • ") + ")" : ""}${skuPart} — Stock: ${p.stock || 0}`;
     selectEl.appendChild(opt);
@@ -596,9 +585,9 @@ function setupPosSearch() {
       div.dataset.pid = p.id;
       const attrs = [];
       if (p.attributes?.gender) attrs.push(p.attributes.gender);
-      if (p.attributes?.size)   attrs.push(p.attributes.size);
-      if (p.attributes?.color)  attrs.push(p.attributes.color);
-      if (p.attributes?.team)   attrs.push(p.attributes.team);
+      if (p.attributes?.size) attrs.push(p.attributes.size);
+      if (p.attributes?.color) attrs.push(p.attributes.color);
+      if (p.attributes?.team) attrs.push(p.attributes.team);
       div.textContent = `${p.name}${attrs.length ? " (" + attrs.join(" • ") + ")" : ""} — Stock: ${p.stock || 0}`;
       div.onclick = () => { addProductToCart(p.id); resultsDiv.classList.add("hidden"); input.value = ""; };
       resultsDiv.appendChild(div);
@@ -635,7 +624,7 @@ function addProductToCart(productId) {
   `;
   $("#cartBody").appendChild(tr);
 
-  tr.querySelector(".lineQty").oninput   = () => updateLineSubtotal(tr);
+  tr.querySelector(".lineQty").oninput = () => updateLineSubtotal(tr);
   tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
   tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
 
@@ -650,7 +639,7 @@ async function submitSaleHandler() {
   for (const r of rows) {
     const pid = r.dataset.productId;
     if (!pid) return alert("Selecciona producto en todas las líneas");
-    const qty   = Number(r.querySelector(".lineQty").value || 0);
+    const qty = Number(r.querySelector(".lineQty").value || 0);
     const price = Number(r.querySelector(".linePrice").value || 0);
     if (qty <= 0) return alert("Cantidad inválida");
     const prod = inventoryCache.get(pid);
@@ -725,6 +714,9 @@ async function submitSaleHandler() {
   }
 }
 
+/* ======================
+   ELIMINAR VENTA
+   ====================== */
 async function deleteSale(ventaId) {
   try {
     await runTransaction(db, async (tx) => {
@@ -770,6 +762,9 @@ async function deleteSale(ventaId) {
   }
 }
 
+/* ======================
+   RENDER ventas (tabla)
+   ====================== */
 function renderSalesTable() {
   const tbody = $("#tbVentas");
   if (!tbody) return;
@@ -797,9 +792,9 @@ function renderSalesTable() {
   });
 }
 
-/**************************************************************************
- * CHARTS (igual que antes)
- **************************************************************************/
+/* ======================
+   CHARTS
+   ====================== */
 let chartTopProducts = null;
 let chartVentasPorDia = null;
 
@@ -811,7 +806,7 @@ function setupCharts() {
     const ctx2 = document.getElementById("chartVentasPorDia").getContext("2d");
     chartVentasPorDia = new Chart(ctx2, { type: 'line', data: { labels: [], datasets: [{ label: 'Ventas', data: [], borderColor: 'rgba(15,118,110,1)', backgroundColor: 'rgba(15,118,110,0.2)' }] }, options: {} });
   } catch (err) {
-    console.warn("Charts not available (maybe DOM not loaded yet)");
+    console.warn("Charts not available");
   }
 }
 
@@ -842,14 +837,14 @@ function updateCharts() {
   chartVentasPorDia.update();
 }
 
-/**************************************************************************
- * CAJA / MOVIMIENTOS
- **************************************************************************/
+/* ======================
+   CAJA por rango / Movimientos
+   ====================== */
 async function computeCajaTotal(fromDate, toDate) {
   try {
     const movCol = collection(db, "companies", companyId, "movements");
-    const qy = query(movCol, where("cuenta","==","cajaEmpresa"), orderBy("createdAt","desc"));
-    const snap = await getDocs(qy);
+    const q = query(movCol, where("cuenta","==","cajaEmpresa"), orderBy("createdAt","desc"));
+    const snap = await getDocs(q);
     let total = 0;
     snap.forEach(d => {
       const md = d.data();
@@ -868,34 +863,46 @@ async function computeCajaTotal(fromDate, toDate) {
 function formatDateForLabel(d) { return d.toISOString().slice(0,10); }
 
 function setupCajaControls() {
-  $("#btnCajaCustomToggle").onclick = () => $("#cajaCustom").classList.toggle("hidden");
-  $("#btnCajaHoy").onclick = async () => {
+  $("#btnCajaCustomToggle")?.addEventListener("click", () => $("#cajaCustom").classList.toggle("hidden"));
+
+  $("#btnCajaHoy")?.addEventListener("click", async () => {
     const today = new Date(); const from = new Date(today); from.setHours(0,0,0,0); const to = new Date(today); to.setHours(23,59,59,999);
     try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja hoy (${formatDateForLabel(from)}): ${money(total)}`; } catch (err) { alert("Error calculando caja hoy: " + err.message); }
-  };
-  $("#btnCaja7d").onclick = async () => { const today = new Date(); const from = new Date(today); from.setDate(today.getDate()-6); from.setHours(0,0,0,0); const to = new Date(today); to.setHours(23,59,59,999); try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja últimos 7 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`;} catch (err) { alert("Error: "+err.message);} };
-  $("#btnCaja30d").onclick = async () => { const today = new Date(); const from = new Date(today); from.setDate(today.getDate()-29); from.setHours(0,0,0,0); const to = new Date(today); to.setHours(23,59,59,999); try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja últimos 30 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`;} catch (err) { alert("Error: "+err.message);} };
-  $("#btnCajaCustom").onclick = async () => {
-    const fromStr = $("#cajaFrom").value; const toStr = $("#cajaTo").value; if (!fromStr||!toStr) return alert("Selecciona ambas fechas");
+  });
+
+  $("#btnCaja7d")?.addEventListener("click", async () => {
+    const today = new Date(); const from = new Date(today); from.setDate(today.getDate()-6); from.setHours(0,0,0,0); const to = new Date(today); to.setHours(23,59,59,999);
+    try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja últimos 7 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`; } catch (err) { alert("Error calculando 7 días: " + err.message); }
+  });
+
+  $("#btnCaja30d")?.addEventListener("click", async () => {
+    const today = new Date(); const from = new Date(today); from.setDate(today.getDate()-29); from.setHours(0,0,0,0); const to = new Date(today); to.setHours(23,59,59,999);
+    try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja últimos 30 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`; } catch (err) { alert("Error calculando 30 días: " + err.message); }
+  });
+
+  $("#btnCajaCustom")?.addEventListener("click", async () => {
+    const fromStr = $("#cajaFrom").value; const toStr = $("#cajaTo").value; if (!fromStr||!toStr) return alert("Selecciona fechas");
     const from = new Date(fromStr); from.setHours(0,0,0,0); const to = new Date(toStr); to.setHours(23,59,59,999); if (to<from) return alert("Rango inválido");
     try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`; } catch (err) { alert("Error calculando rango: " + err.message); }
-  };
+  });
 }
 
-/**************************************************************************
- * GASTOS
- **************************************************************************/
+/* ======================
+   GASTOS
+   ====================== */
 function setupGastosHandlers() {
-  $("#btnSaveGasto").onclick = async (e) => { e.preventDefault(); await createGasto(); };
+  $("#btnSaveGasto")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    await createGasto();
+  });
 }
 
 async function createGasto() {
   const fechaStr = $("#gastoFecha").value;
-  const cat   = $("#gastoCat").value.trim();
+  const cat = $("#gastoCat").value.trim();
   const monto = Number($("#gastoMonto").value || 0);
-  const desc  = $("#gastoDesc").value.trim() || null;
+  const desc = $("#gastoDesc").value.trim() || null;
   const pagadoPor = $("#gastoPagadoPor").value || "empresa";
-
   if (!fechaStr || !cat || !monto || monto <= 0) return alert("Completa fecha, categoría y monto válidos");
 
   try {
@@ -917,7 +924,7 @@ async function createGasto() {
     });
 
     alert("Gasto registrado correctamente.");
-    ["#gastoFecha","#gastoCat","#gastoMonto","#gastoDesc"].forEach(s => { if ($(s)) $(s).value=""; });
+    ["#gastoFecha","#gastoCat","#gastoMonto","#gastoDesc"].forEach(s => { try { $(s).value=""; } catch(e){} });
     $("#gastoPagadoPor").value = "empresa";
     await loadGastosOnce();
   } catch (err) {
@@ -936,8 +943,13 @@ async function loadGastosOnce() {
 }
 
 function renderGastosTable(gastosArray) {
-  const tb = $("#tbGastos"); if (!tb) return; tb.innerHTML = "";
-  if (!gastosArray.length) { tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay gastos registrados.</td></tr>`; return; }
+  const tb = $("#tbGastos");
+  if (!tb) return;
+  tb.innerHTML = "";
+  if (!gastosArray.length) {
+    tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay gastos registrados.</td></tr>`;
+    return;
+  }
   gastosArray.forEach(g => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -952,7 +964,9 @@ function renderGastosTable(gastosArray) {
 
   $$(".delete-gasto").forEach(btn => btn.onclick = async () => {
     const id = btn.dataset.id;
-    if (confirm("Eliminar gasto? Esto restaurará el dinero en caja si el gasto salió de la empresa.")) await deleteGasto(id);
+    if (confirm("Eliminar gasto? Esto restaurará el dinero en caja si el gasto salió de la empresa.")) {
+      await deleteGasto(id);
+    }
   })
 }
 
@@ -988,9 +1002,9 @@ async function deleteGasto(gastoId) {
   }
 }
 
-/**************************************************************************
- * MOVIMIENTOS
- **************************************************************************/
+/* ======================
+   MOVIMIENTOS
+   ====================== */
 async function loadMovimientos(range = "7d") {
   try {
     const movCol = collection(db, "companies", companyId, "movements");
@@ -1016,7 +1030,8 @@ async function loadMovimientos(range = "7d") {
 }
 
 function renderMovimientosTable(arr) {
-  const tb = $("#tbMovimientos"); if (!tb) return;
+  const tb = $("#tbMovimientos");
+  if (!tb) return;
   tb.innerHTML = "";
   if (!arr.length) { tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay movimientos en este rango.</td></tr>`; return; }
   arr.forEach(m => {
@@ -1030,118 +1045,128 @@ function renderMovimientosTable(arr) {
   });
 }
 
+/* quick mov buttons */
 document.addEventListener("click", (ev) => {
-  if (ev.target && ev.target.id === "btnMovHoy")  loadMovimientos("today");
-  if (ev.target && ev.target.id === "btnMov7d")   loadMovimientos("7d");
-  if (ev.target && ev.target.id === "btnMov30d")  loadMovimientos("30d");
+  if (ev.target && ev.target.id === "btnMovHoy") loadMovimientos("today");
+  if (ev.target && ev.target.id === "btnMov7d") loadMovimientos("7d");
+  if (ev.target && ev.target.id === "btnMov30d") loadMovimientos("30d");
 });
 
-/**************************************************************************
- * USERS (ADMIN creates employees)
- * - creates user account using admin-only endpoint (recommended)
- * - fallback: client-side createUserWithEmailAndPassword but this will sign
- *   in as the new user (we warn and then re-login admin is manual).
- **************************************************************************/
+/* ======================
+   USUARIOS (ADMIN) -> crear empleado vía Cloud Function
+   ====================== */
 function setupUsersHandlers() {
-  $("#btnCreateInvite")?.addEventListener("click", async (e) => {
-    e.preventDefault();
-    await handleCreateEmployeeFromAdmin();
-  });
-}
+  // si existe el botón de crear empleado, lo dejamos para crear cuenta + contraseña
+  const btnCreate = $("#btnCreateEmployee") || $("#btnCreateInvite") || null;
 
-/**
- * handleCreateEmployeeFromAdmin
- * - reads invName + invEmail (from users tab inputs)
- * - asks admin for a password (prompt) or uses provided field (if you add)
- * - calls CREATE_EMPLOYEE_ENDPOINT (recommended) which must create the user
- *   with Admin SDK and return { uid, email } on success and also write users/{uid}
- * - If CREATE_EMPLOYEE_ENDPOINT is empty, tries local createUserWithEmailAndPassword
- *   (NOT recommended — it will sign you out as admin because Firebase client
- *   switches to the new auth session).
- */
-async function handleCreateEmployeeFromAdmin() {
-  if (userRole !== "admin") return alert("Solo administradores pueden crear empleados desde aquí.");
+  if (!btnCreate) return;
 
-  const name = ($("#invName")?.value || "").trim();
-  const email = ($("#invEmail")?.value || "").trim();
+  // preferimos btnCreateEmployee (nuevo flujo), si no existe intentamos btnCreateInvite (compatibilidad)
+  const createBtn = $("#btnCreateEmployee");
+  if (createBtn) {
+    createBtn.onclick = async () => {
+      const name = $("#invName").value.trim() || null;
+      const email = $("#invEmail").value.trim() || null;
+      const pass = $("#invPass") ? $("#invPass").value : null;
+      const role = $("#invRole").value || "empleado";
 
-  if (!email || !name) return alert("Completa nombre y email del empleado.");
+      if (!email || !pass) return alert("Email y contraseña requeridos para crear empleado.");
 
-  // request password
-  let password = prompt("Ingresa contraseña para el empleado (mínimo 6 caracteres):", Math.random().toString(36).slice(2,10));
-  if (!password || password.length < 6) return alert("Contraseña inválida o cancelada.");
-
-  // Preferred: call server endpoint that uses Admin SDK
-  if (CREATE_EMPLOYEE_ENDPOINT && CREATE_EMPLOYEE_ENDPOINT.trim()) {
-    try {
-      const resp = await fetch(CREATE_EMPLOYEE_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name, role: "empleado", companyId })
-      });
-      const j = await resp.json();
-      if (!resp.ok) throw new Error(j?.error || JSON.stringify(j));
-      alert(`Empleado creado correctamente (uid: ${j.uid}). Email: ${email}.`);
-      $("#invName").value = ""; $("#invEmail").value = "";
-    } catch (err) {
-      console.error("createEmployee endpoint error", err);
-      alert("Error creando empleado en servidor: " + err.message);
-    }
+      try {
+        // callable function on backend
+        const createEmployee = httpsCallable(functions, "createEmployee");
+        const res = await createEmployee({ email, password: pass, displayName: name, role, companyId });
+        alert("Empleado creado correctamente (uid: " + res.data.uid + ").");
+        $("#invName").value = ""; $("#invEmail").value = ""; if ($("#invPass")) $("#invPass").value = ""; $("#invRole").value = "empleado";
+      } catch (err) {
+        console.error("createEmployee error:", err);
+        const msg = (err?.message || err?.code || "Error creando empleado");
+        alert("Error creando empleado: " + msg);
+      }
+    };
     return;
   }
 
-  // Fallback: client-side createUser (not recommended)
-  if (!confirm("No detecto endpoint seguro para crear empleados. El método alternativo creará el usuario desde este cliente y cerrará tu sesión de administrador. ¿Deseas continuar?")) return;
-  try {
-    // create user (this will sign in as the new user)
-    await createUserWithEmailAndPassword(auth, email, password);
-    // update profile
-    if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: name });
-    // create user doc and link to company
-    const newUid = auth.currentUser.uid;
-    await setDoc(doc(db, "users", newUid), {
-      displayName: name, email, role: "empleado", planActive: true,
-      companyId, createdAt: serverTimestamp()
-    });
-    // sign out (admin must sign in again)
-    alert("Empleado creado y autenticado. Debes cerrar sesión y volver a iniciar con tu admin para continuar.");
-    await signOut(auth);
-  } catch (err) {
-    console.error("Fallback create employee error", err);
-    alert("Error creando empleado (cliente-side): " + err.message);
+  // fallback: existing "invite" button (no-op if you removed invites)
+  $("#btnCreateInvite")?.addEventListener("click", async () => {
+    alert("En esta versión preferimos que el administrador cree empleados (email+password) directamente. Usa la opción para crear empleado con contraseña.");
+  });
+}
+
+/* listar usuarios vinculados a la company (solo admin) */
+function subscribeUsersIfAdmin() {
+  if (userRole !== "admin") {
+    // hide users tab
+    const btn = document.querySelector("[data-tab='usuarios']");
+    if (btn) btn.style.display = "none";
+    return;
   }
+  const btn = document.querySelector("[data-tab='usuarios']");
+  if (btn) btn.style.display = "";
+
+  const q = query(collection(db, "users"), where("companyId","==",companyId), orderBy("createdAt","desc"));
+  const unsub = onSnapshot(q, snap => {
+    const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderUsersTable(arr);
+  });
+  unsubscribers.push(unsub);
 }
 
-/**************************************************************************
- * Simple helper: invite listing removed — since you asked to drop codes,
- * we won't expose invites; the admin creates employees directly.
- **************************************************************************/
-function subscribeInvitesIfAdmin() {
-  // intentionally left empty because we removed invites system
+function renderUsersTable(users) {
+  const tb = $("#tbInvites") || $("#tbUsers"); // reutilizamos un tbody
+  if (!tb) return;
+  tb.innerHTML = "";
+  if (!users.length) {
+    tb.innerHTML = `<tr><td colspan="6" class="small text-slate-500">No hay usuarios.</td></tr>`;
+    return;
+  }
+  users.forEach(u => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${u.createdAt?.toDate ? u.createdAt.toDate().toLocaleString() : "-"}</td>
+      <td>${escapeHtml(u.displayName || "")}</td>
+      <td>${u.email || "-"}</td>
+      <td>${u.role || "empleado"}</td>
+      <td>${u.companyId || "-"}</td>
+      <td>
+        ${u.role === "empleado" ? `<button class="px-2 py-1 border rounded text-xs btnMakeAdmin" data-uid="${u.id}">Hacer admin</button>` : ""}
+      </td>
+    `;
+    tb.appendChild(tr);
+  });
+
+  $$(".btnMakeAdmin").forEach(b => b.onclick = async () => {
+    const uid = b.dataset.uid;
+    if (!confirm("Convertir usuario en administrador?")) return;
+    try {
+      // Only the Cloud Function (or server admin SDK) should change user roles; for now update users/{uid}.role (requires rules)
+      await updateDoc(doc(db, "users", uid), { role: "admin" });
+      alert("Usuario actualizado a admin (nota: para que los custom claims actualicen, desplegar una función que sincronice claims o pedir al usuario que vuelva a loguear).");
+    } catch (err) { console.error(err); alert("Error actualizando rol: "+err.message); }
+  });
 }
 
-/**************************************************************************
- * Utilities
- **************************************************************************/
+/* ======================
+   UTILS
+   ====================== */
 function escapeHtml(s) {
   if (!s) return '';
-  return String(s).replace(/[&<>"'`=\/]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D'}[c]));
+  return String(s).replace(/[&<>"'`=\/]/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c];
+  });
 }
 function normalizeForSearch(str) {
   if (!str) return "";
   return String(str).normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
 
-/**************************************************************************
- * BOOT
- **************************************************************************/
+/* ======================
+   Boot
+   ====================== */
 window.addEventListener("DOMContentLoaded", () => {
-  try { setupPosHandlers(); } catch(e){}
+  try { setupPosHandlers(); } catch(e) { /* ignore */ }
 });
 
-/**************************************************************************
- * DEBUG
- **************************************************************************/
+/* expose debug */
 window._dbg = { db, inventoryCache, salesCache, runTransaction };
-
 /* FIN app.js */

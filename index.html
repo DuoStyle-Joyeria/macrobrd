@@ -257,42 +257,26 @@
         <!-- USUARIOS (solo Admin) -->
         <!-- USUARIOS (solo Admin) -->
 <section id="tab-usuarios" class="tab hidden mt-4">
-  <div class="grid md:grid-cols-2 gap-4">
-    <!-- Crear Usuario -->
-    <form id="formCreateUser" class="bg-white p-4 rounded shadow space-y-2">
-      <h3 class="font-semibold text-lg">Crear Usuario</h3>
-      <div class="text-sm text-slate-600">
-        Código de Empresa: 
-        <span id="companyIdLabel" class="font-mono bg-slate-100 px-2 py-1 rounded"></span>
-      </div>
-      <input id="userName" type="text" placeholder="Nombre del empleado" required class="w-full border rounded p-2">
-      <input id="userEmail" type="email" placeholder="Email del empleado" required class="w-full border rounded p-2">
-      <input id="userPass" type="password" placeholder="Contraseña" required class="w-full border rounded p-2">
-      <select id="userRole" class="w-full border rounded p-2">
-        <option value="empleado">Empleado</option>
-        <option value="admin">Administrador (co-propietario)</option>
-      </select>
-      <button id="btnCreateUser" type="submit" class="w-full bg-emerald-600 text-white py-2 rounded">
-        Crear Usuario
-      </button>
-      <p class="text-xs text-slate-500">
-        El empleado podrá iniciar sesión con el correo y la contraseña que le asignes aquí.
-      </p>
-    </form>
+  <!-- BLOQUE: Crear empleado directamente (admin crea email+password) -->
+<!-- Dentro de section id="tab-usuarios" -->
+<div class="bg-white p-4 rounded shadow space-y-2">
+  <h3 class="font-semibold text-lg">Crear Empleado (desde admin)</h3>
+  <div class="text-sm text-slate-600">Código de Empresa: <span id="companyIdLabel" class="font-mono bg-slate-100 px-2 py-1 rounded"></span></div>
 
-    <!-- Listado de Usuarios -->
-    <div class="bg-white p-4 rounded shadow overflow-auto">
-      <h3 class="font-semibold text-lg mb-2">Usuarios registrados</h3>
-      <table class="w-full text-sm">
-        <thead class="text-left">
-          <tr>
-            <th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th></th>
-          </tr>
-        </thead>
-        <tbody id="tbUsers"></tbody>
-      </table>
-    </div>
+  <input id="invName" type="text" placeholder="Nombre del empleado" class="w-full border rounded p-2">
+  <input id="invEmail" type="email" placeholder="Email del empleado (requerido)" class="w-full border rounded p-2">
+  <input id="invPassword" type="password" placeholder="Contraseña (genera una segura)" class="w-full border rounded p-2">
+  <select id="invRole" class="w-full border rounded p-2">
+    <option value="empleado">Empleado</option>
+    <option value="admin">Administrador (co-propietario)</option>
+  </select>
+  <div class="flex gap-2">
+    <button id="btnCreateEmployee" class="w-full bg-emerald-600 text-white py-2 rounded">Crear empleado</button>
   </div>
+  <p class="text-xs text-slate-500">El correo y la contraseña serán creados por el administrador; el empleado podrá iniciar sesión con esos datos.</p>
+</div>
+
+
 </section>
 
 
