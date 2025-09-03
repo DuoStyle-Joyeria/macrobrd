@@ -1072,17 +1072,35 @@ function setupUsersHandlers() {
 
       if (!email || !pass) return alert("Email y contraseña requeridos para crear empleado.");
 
-      try {
-        // callable function on backend
-        const createEmployee = httpsCallable(functions, "createEmployee");
-        const res = await createEmployee({ email, password: pass, displayName: name, role, companyId });
-        alert("Empleado creado correctamente (uid: " + res.data.uid + ").");
-        $("#invName").value = ""; $("#invEmail").value = ""; if ($("#invPass")) $("#invPass").value = ""; $("#invRole").value = "empleado";
-      } catch (err) {
-        console.error("createEmployee error:", err);
-        const msg = (err?.message || err?.code || "Error creando empleado");
-        alert("Error creando empleado: " + msg);
-      }
+     try {
+  // 🔗 Llamada a la Cloud Function "createEmployee"
+  const createEmployee = httpsCallable(functions, "createEmployee");
+
+  // 📤 Enviar datos al backend con las claves correctas
+  const res = await createEmployee({
+    email,
+    password: pass,  // La contraseña que escribiste en el formulario
+    name,            // ✅ ahora coincide con lo que espera el backend
+    role,
+    companyId
+  });
+
+  // 📥 Confirmación
+  alert("Empleado creado correctamente (uid: " + res.data.uid + ").");
+
+  // 🧹 Limpiar el formulario
+  $("#invName").value = "";
+  $("#invEmail").value = "";
+  if ($("#invPass")) $("#invPass").value = "";
+  $("#invRole").value = "empleado";
+
+} catch (err) {
+  // 🚨 Manejo de errores
+  console.error("createEmployee error:", err);
+  const msg = (err?.message || err?.code || "Error creando empleado");
+  alert("Error creando empleado: " + msg);
+}
+
     };
     return;
   }

@@ -70,7 +70,7 @@
       <div class="flex items-center justify-between mt-4">
         <div>
           <h1 class="text-2xl font-bold">Panel — <span id="companyName">Empresa</span></h1>
-          <p id="userRole" class="text-sm text-slate-500"></p>
+        <p id="userRole" class="text-sm text-slate-500"></p>
         </div>
         <div class="flex items-center gap-2">
           <button id="btnPerfil" class="px-3 py-2 rounded border">Perfil</button>
@@ -147,9 +147,15 @@
                   <label class="text-sm">Cliente (opcional)</label>
                   <input id="saleClient" class="w-full border rounded p-2" placeholder="Nombre / teléfono">
                   <label class="text-sm">Tipo de venta</label>
-                  <select id="saleType" class="w-full border rounded p-2"><option value="minorista">Minorista</option><option value="mayorista">Mayorista</option></select>
+                  <select id="saleType" class="w-full border rounded p-2">
+                    <option value="minorista">Minorista</option>
+                    <option value="mayorista">Mayorista</option>
+                  </select>
                   <label class="text-sm">Canal</label>
-                  <select id="saleChannel" class="w-full border rounded p-2"><option value="fisico">Físico</option><option value="online">Online</option></select>
+                  <select id="saleChannel" class="w-full border rounded p-2">
+                    <option value="fisico">Físico</option>
+                    <option value="online">Online</option>
+                  </select>
                 </div>
 
                 <div class="mt-4 text-right">
@@ -241,7 +247,10 @@
                 <button id="btnMov7d" class="px-2 py-1 border rounded mr-1">7 días</button>
                 <button id="btnMov30d" class="px-2 py-1 border rounded mr-1">30 días</button>
               </div>
-              <table class="w-full text-sm"><thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Monto</th><th>Desc</th></tr></thead><tbody id="tbMovimientos"></tbody></table>
+              <table class="w-full text-sm">
+                <thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Monto</th><th>Desc</th></tr></thead>
+                <tbody id="tbMovimientos"></tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -249,36 +258,53 @@
         <!-- ESTADÍSTICAS -->
         <section id="tab-estadisticas" class="tab hidden mt-4">
           <div class="grid md:grid-cols-2 gap-4">
-            <div class="bg-white p-4 rounded shadow" style="height:320px"><h3 class="font-semibold mb-2">Top Productos (últimos 90 días)</h3><canvas id="chartTopProducts" height="280"></canvas></div>
-            <div class="bg-white p-4 rounded shadow" style="height:320px"><h3 class="font-semibold mb-2">Ventas por día (últimos 30 días)</h3><canvas id="chartVentasPorDia" height="280"></canvas></div>
+            <div class="bg-white p-4 rounded shadow" style="height:320px">
+              <h3 class="font-semibold mb-2">Top Productos (últimos 90 días)</h3>
+              <canvas id="chartTopProducts" height="280"></canvas>
+            </div>
+            <div class="bg-white p-4 rounded shadow" style="height:320px">
+              <h3 class="font-semibold mb-2">Ventas por día (últimos 30 días)</h3>
+              <canvas id="chartVentasPorDia" height="280"></canvas>
+            </div>
           </div>
         </section>
 
         <!-- USUARIOS (solo Admin) -->
-        <!-- USUARIOS (solo Admin) -->
-<section id="tab-usuarios" class="tab hidden mt-4">
-  <!-- BLOQUE: Crear empleado directamente (admin crea email+password) -->
-<!-- Dentro de section id="tab-usuarios" -->
-<div class="bg-white p-4 rounded shadow space-y-2">
-  <h3 class="font-semibold text-lg">Crear Empleado (desde admin)</h3>
-  <div class="text-sm text-slate-600">Código de Empresa: <span id="companyIdLabel" class="font-mono bg-slate-100 px-2 py-1 rounded"></span></div>
+        <section id="tab-usuarios" class="tab hidden mt-4">
+          <div class="grid md:grid-cols-2 gap-4">
+            <!-- Crear empleado -->
+            <div class="bg-white p-4 rounded shadow space-y-2">
+              <h3 class="font-semibold text-lg">Crear Empleado (desde admin)</h3>
+              <div class="text-sm text-slate-600">
+                Código de Empresa:
+                <span id="companyIdLabel" class="font-mono bg-slate-100 px-2 py-1 rounded"></span>
+              </div>
+              <input id="invName" type="text" placeholder="Nombre del empleado" class="w-full border rounded p-2">
+              <input id="invEmail" type="email" placeholder="Email del empleado (requerido)" class="w-full border rounded p-2">
+              <!-- IMPORTANTE: id esperado por tu JS -->
+              <input id="invPass" type="password" placeholder="Contraseña (requerida)" class="w-full border rounded p-2">
+              <select id="invRole" class="w-full border rounded p-2">
+                <option value="empleado">Empleado</option>
+                <option value="admin">Administrador (co-propietario)</option>
+              </select>
+              <button id="btnCreateEmployee" class="w-full bg-emerald-600 text-white py-2 rounded">Crear empleado</button>
+              <p class="text-xs text-slate-500">
+                El administrador define correo y contraseña; el empleado podrá iniciar sesión con esos datos.
+              </p>
+            </div>
 
-  <input id="invName" type="text" placeholder="Nombre del empleado" class="w-full border rounded p-2">
-  <input id="invEmail" type="email" placeholder="Email del empleado (requerido)" class="w-full border rounded p-2">
-  <input id="invPassword" type="password" placeholder="Contraseña (genera una segura)" class="w-full border rounded p-2">
-  <select id="invRole" class="w-full border rounded p-2">
-    <option value="empleado">Empleado</option>
-    <option value="admin">Administrador (co-propietario)</option>
-  </select>
-  <div class="flex gap-2">
-    <button id="btnCreateEmployee" class="w-full bg-emerald-600 text-white py-2 rounded">Crear empleado</button>
-  </div>
-  <p class="text-xs text-slate-500">El correo y la contraseña serán creados por el administrador; el empleado podrá iniciar sesión con esos datos.</p>
-</div>
-
-
-</section>
-
+            <!-- Empleados -->
+            <div class="bg-white p-4 rounded shadow overflow-auto">
+              <h3 class="font-semibold text-lg mb-2">Empleados</h3>
+              <table class="w-full text-sm">
+                <thead class="text-left">
+                  <tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th></th></tr>
+                </thead>
+                <tbody id="tbEmployees"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
 
       </div>
     </div>
