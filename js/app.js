@@ -1192,4 +1192,212 @@ window.addEventListener("DOMContentLoaded", () => {
 
 /* expose debug */
 window._dbg = { db, inventoryCache, salesCache, runTransaction };
+
+
+/* ========================
+   PDF & Export helpers
+   ======================== */
+
+// format dinero consistente (reusa tu money si prefieres)
+function formatMoneyNumber(n) {
+  return `$${Number(n||0).toLocaleString('es-CO',{maximumFractionDigits:2})}`;
+}
+function formatDateTime(dt) {
+  // dt: Firestore Timestamp or Date
+  if (!dt) return '';
+  if (dt?.toDate) dt = dt.toDate();
+  if (!(dt instanceof Date)) dt = new Date(dt);
+  return dt.toLocaleString();
+}
+
+/**
+ * generateInvoicePDF(sale)
+ * Genera un PDF simple pero profesional (cliente, items, totales).
+ * Usa jsPDF + autotable (ya cargados en index.html).
+ */
+async function generateInvoicePDF(sale) {
+  try {
+    // import UMD object
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+    // Encabezado
+    const margin = 40;
+    doc.setFontSize(16);
+    doc.text("FACTURA / COMPROBANTE", margin, 60);
+    doc.setFontSize(10);
+    doc.text(`ID Venta: ${sale.id || '-'}`, margin, 78);
+    const created = sale.createdAt?.toDate ? sale.createdAt.toDate() : (sale.createdAt ? new Date(sale.createdAt) : new Date());
+    doc.text(`Fecha: ${created.toLocaleString()}`, margin, 92);
+    doc.text(`Vendedor: ${sale.createdBy || '-'}`, margin, 106);
+    doc.text(`Cliente: ${sale.client || '-'}`, margin, 120);
+
+    // Empresa (toma del companyName o dejar espacio para editar)
+    doc.setFontSize(12);
+    doc.text("Empresa: " + (document.getElementById("companyName")?.textContent || "Mi Empresa"), 350, 60);
+    doc.setFontSize(10);
+    doc.text("Dirección: ----------------", 350, 78);
+    doc.text("Tel: ----------------------", 350, 92);
+    doc.text("NIT: ----------------------", 350, 106);
+
+    // Items tabla: preparar columnas
+    const columns = [
+      { header: 'Cant.', dataKey: 'qty' },
+      { header: 'Descripción', dataKey: 'name' },
+      { header: 'Precio', dataKey: 'price' },
+      { header: 'Subtotal', dataKey: 'subtotal' }
+    ];
+
+    const rows = (sale.items || []).map(it => ({
+      qty: it.qty,
+      name: it.name,
+      price: formatMoneyNumber(it.price),
+      subtotal: formatMoneyNumber((it.qty||0) * (it.price||0))
+    }));
+
+    // autotable: top Y
+    doc.autoTable({
+      startY: 140,
+      margin: { left: margin, right: margin },
+      head: [columns.map(c => c.header)],
+      body: rows.map(r => [r.qty, r.name, r.price, r.subtotal]),
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [20, 115, 110] }
+    });
+
+    // Totales al final
+    const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 300;
+    doc.setFontSize(11);
+    doc.text(`Total: ${formatMoneyNumber(sale.total)}`, margin, finalY + 30);
+    doc.setFontSize(9);
+    doc.text("Gracias por tu compra.", margin, finalY + 50);
+
+    // Firma opcional
+    doc.setLineWidth(0.5);
+    doc.line(margin, finalY + 90, margin + 200, finalY + 90);
+    doc.text("Firma autorizada", margin, finalY + 105);
+
+    // Nombre de archivo
+    const clientPart = sale.client ? (sale.client.replace(/\s+/g,'_')) : "cliente";
+    const fileName = `factura_${sale.id || Date.now()}_${clientPart}.pdf`;
+
+    // Descargar
+    doc.save(fileName);
+
+  } catch (err) {
+    console.error("generateInvoicePDF error:", err);
+    alert("Error generando PDF: " + (err.message || err));
+  }
+}
+
+/**
+ * exportSalesCSV()
+ * Descarga todas las ventas (salesCache) en CSV.
+ */
+function exportSalesCSV() {
+  try {
+    if (!Array.isArray(salesCache) || !salesCache.length) {
+      return alert("No hay ventas para exportar.");
+    }
+    const rows = [];
+    // encabezado
+    rows.push(['ventaId','fecha','cliente','total','items']);
+    salesCache.forEach(s => {
+      const created = s.createdAt?.toDate ? s.createdAt.toDate().toISOString() : (s.createdAt ? new Date(s.createdAt).toISOString() : '');
+      const itemsText = (s.items || []).map(i => `${i.qty}x ${i.name} @${i.price}`).join("; ");
+      rows.push([s.id, created, s.client || '', s.total || 0, itemsText]);
+    });
+    // convertir a CSV
+    const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ventas_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("exportSalesCSV error:", err);
+    alert("Error exportando CSV: " + err.message);
+  }
+}
+
+/* ========================
+   Modificar renderSalesTable para añadir botón Descargar
+   (Reemplaza tu renderSalesTable existente con esta versión)
+   ======================== */
+function renderSalesTable() {
+  const tbody = document.querySelector("#tbVentas");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  salesCache.forEach(sale => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="border px-2 py-1">${formatDateTime(sale.createdAt)}</td>
+      <td class="border px-2 py-1">${escapeHtml(sale.client) || '-'}</td>
+      <td class="border px-2 py-1">${formatMoneyNumber(sale.total)}</td>
+      <td class="border px-2 py-1">${(sale.items || []).map(i => `${i.qty} x ${escapeHtml(i.name)}`).join("<br>")}</td>
+      <td class="border px-2 py-1">
+        <button class="bg-emerald-600 text-white px-2 py-1 rounded text-xs download-sale" data-id="${sale.id}">Descargar</button>
+        <button class="bg-red-500 text-white px-2 py-1 rounded text-xs delete-sale" data-id="${sale.id}">Eliminar</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // listeners
+  $$(".download-sale").forEach(btn => {
+    btn.onclick = async () => {
+      const saleId = btn.dataset.id;
+      const sale = salesCache.find(s => s.id === saleId);
+      if (!sale) return alert("Venta no encontrada en cache (recarga).");
+      await generateInvoicePDF(sale);
+    };
+  });
+
+  $$(".delete-sale").forEach(btn => {
+    btn.onclick = async () => {
+      const saleId = btn.dataset.id;
+      if (confirm("¿Seguro que deseas eliminar esta venta?")) await deleteSale(saleId);
+    };
+  });
+}
+
+
+/* ========================
+   Botón exportar ventas CSV al UI
+   ======================== */
+// Añade este pequeño botón visual en algún lugar visible, p.ej. al lado del título Historial de Ventas.
+// Si prefieres que lo inserte dinámicamente, lo agrego al inicio del body de la tabla cuando exista el elemento.
+(function attachExportButtonToSalesHeader(){
+  // espera DOM
+  document.addEventListener("DOMContentLoaded", () => {
+    const ventasHeader = document.querySelector("#tbVentas")?.closest("div");
+    if (!ventasHeader) {
+      // lo intentamos en otro selector (si en tu HTML estructura distinta)
+      const tb = document.getElementById("tbVentas");
+      if (!tb) return;
+    }
+    // crear barra simple arriba de la tabla (si no existe)
+    const container = document.querySelector("#tbVentas")?.parentElement;
+    if (!container) return;
+    let bar = container.querySelector(".sales-tools-bar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.className = "sales-tools-bar flex items-center gap-2 mb-2";
+      bar.innerHTML = `<button id="btnExportSalesCSV" class="px-2 py-1 border rounded text-sm">Exportar ventas (CSV)</button>`;
+      container.insertBefore(bar, container.firstChild);
+      const btn = bar.querySelector("#btnExportSalesCSV");
+      btn.onclick = exportSalesCSV;
+    }
+  }, { once: true });
+})();
+
+/* FIN: PDF & Export helpers */
+
+
+
 /* FIN app.js */
