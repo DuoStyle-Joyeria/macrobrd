@@ -70,7 +70,7 @@
       <div class="flex items-center justify-between mt-4">
         <div>
           <h1 class="text-2xl font-bold">Panel — <span id="companyName">Empresa</span></h1>
-        <p id="userRole" class="text-sm text-slate-500"></p>
+          <p id="userRole" class="text-sm text-slate-500"></p>
         </div>
         <div class="flex items-center gap-2">
           <button id="btnPerfil" class="px-3 py-2 rounded border">Perfil</button>
@@ -113,7 +113,8 @@
         <div class="flex gap-2 flex-wrap">
           <button data-tab="ventas" class="tab-btn px-3 py-2 rounded bg-slate-900 text-white">Ventas</button>
           <button data-tab="inventario" class="tab-btn px-3 py-2 rounded border">Inventario</button>
-          <button data-tab="gastos" class="tab-btn px-3 py-2 rounded border">Gastos</button>
+          <button data-tab="egresos" class="tab-btn px-3 py-2 rounded border">Egresos</button>
+          <button data-tab="ingresos" class="tab-btn px-3 py-2 rounded border">Ingresos</button>
           <button data-tab="movimientos" class="tab-btn px-3 py-2 rounded border">Movimientos</button>
           <button data-tab="estadisticas" class="tab-btn px-3 py-2 rounded border">Estadísticas</button>
           <!-- Solo admin -->
@@ -147,21 +148,16 @@
                   <label class="text-sm">Cliente (opcional)</label>
                   <input id="saleClient" class="w-full border rounded p-2" placeholder="Nombre / teléfono">
                   <label class="text-sm">Tipo de venta</label>
-                  <select id="saleType" class="w-full border rounded p-2">
-                    <option value="minorista">Minorista</option>
-                    <option value="mayorista">Mayorista</option>
-                  </select>
+                  <select id="saleType" class="w-full border rounded p-2"><option value="minorista">Minorista</option><option value="mayorista">Mayorista</option></select>
                   <label class="text-sm">Canal</label>
-                  <select id="saleChannel" class="w-full border rounded p-2">
-                    <option value="fisico">Físico</option>
-                    <option value="online">Online</option>
-                  </select>
+                  <select id="saleChannel" class="w-full border rounded p-2"><option value="fisico">Físico</option><option value="online">Online</option></select>
                 </div>
 
                 <div class="mt-4 text-right">
                   <div class="text-sm">Total</div>
                   <div id="cartTotal" class="text-2xl font-semibold">$0</div>
                   <button id="btnSubmitSale" class="mt-3 w-full bg-emerald-600 text-white py-2 rounded">Confirmar venta</button>
+                  <button id="btnExportSalesRange" class="mt-2 w-full bg-slate-800 text-white py-1 rounded">Exportar ventas (rango)</button>
                 </div>
               </div>
             </div>
@@ -212,26 +208,51 @@
           </div>
         </section>
 
-        <!-- GASTOS -->
-        <section id="tab-gastos" class="tab hidden mt-4">
+        <!-- EGRESOS -->
+        <section id="tab-egresos" class="tab hidden mt-4">
           <div class="grid md:grid-cols-2 gap-4">
-            <form id="formGasto" class="bg-white p-4 rounded shadow space-y-2">
-              <h3 class="font-semibold text-lg">Registrar Gasto</h3>
-              <input type="date" id="gastoFecha" required class="w-full border rounded p-2">
-              <input type="text" id="gastoCat" placeholder="Categoría" required class="w-full border rounded p-2">
-              <input type="number" id="gastoMonto" placeholder="Monto" step="0.01" min="0" required class="w-full border rounded p-2">
-              <input type="text" id="gastoDesc" placeholder="Descripción" class="w-full border rounded p-2">
-              <select id="gastoPagadoPor" class="w-full border rounded p-2">
+            <form id="formEgreso" class="bg-white p-4 rounded shadow space-y-2">
+              <h3 class="font-semibold text-lg">Registrar Egreso</h3>
+              <input type="date" id="egresoFecha" required class="w-full border rounded p-2">
+              <input type="text" id="egresoCat" placeholder="Categoría" required class="w-full border rounded p-2">
+              <input type="number" id="egresoMonto" placeholder="Monto" step="0.01" min="0" required class="w-full border rounded p-2">
+              <input type="text" id="egresoDesc" placeholder="Descripción" class="w-full border rounded p-2">
+              <select id="egresoPagadoPor" class="w-full border rounded p-2">
                 <option value="empresa">Empresa</option>
                 <option value="otro">Otro</option>
               </select>
-              <button id="btnSaveGasto" class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Gasto</button>
+              <button id="btnSaveEgreso" class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Egreso</button>
+              <button id="btnExportEgresosRange" class="w-full mt-2 bg-slate-800 text-white py-2 rounded">Exportar egresos (rango)</button>
             </form>
+
             <div class="bg-white p-4 rounded shadow overflow-auto">
-              <h3 class="font-semibold text-lg mb-2">Historial de Gastos</h3>
+              <h3 class="font-semibold text-lg mb-2">Historial de Egresos</h3>
               <table class="w-full text-sm">
                 <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th><th>Acciones</th></tr></thead>
-                <tbody id="tbGastos"></tbody>
+                <tbody id="tbEgresos"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- INGRESOS -->
+        <section id="tab-ingresos" class="tab hidden mt-4">
+          <div class="grid md:grid-cols-2 gap-4">
+            <form id="formIngreso" class="bg-white p-4 rounded shadow space-y-2">
+              <h3 class="font-semibold text-lg">Registrar Ingreso</h3>
+              <input type="date" id="ingresoFecha" required class="w-full border rounded p-2">
+              <input type="text" id="ingresoCat" placeholder="Categoria / Fuente" required class="w-full border rounded p-2">
+              <input type="number" id="ingresoMonto" placeholder="Monto" step="0.01" min="0" required class="w-full border rounded p-2">
+              <input type="text" id="ingresoDesc" placeholder="Descripción" class="w-full border rounded p-2">
+              <button id="btnSaveIngreso" class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Ingreso</button>
+              <button id="btnExportIngresosRange" class="w-full mt-2 bg-slate-800 text-white py-2 rounded">Exportar ingresos (rango)</button>
+            </form>
+
+            <div class="bg-white p-4 rounded shadow overflow-auto">
+              <h3 class="font-semibold text-lg mb-2">Historial de Ingresos</h3>
+              <table class="w-full text-sm">
+                <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th></tr></thead>
+                <tbody id="tbIngresos"></tbody>
               </table>
             </div>
           </div>
@@ -246,6 +267,7 @@
                 <button id="btnMovHoy" class="px-2 py-1 border rounded mr-1">Hoy</button>
                 <button id="btnMov7d" class="px-2 py-1 border rounded mr-1">7 días</button>
                 <button id="btnMov30d" class="px-2 py-1 border rounded mr-1">30 días</button>
+                <button id="btnExportMovimientosRange" class="px-2 py-1 bg-slate-800 text-white rounded">Exportar movimientos (rango)</button>
               </div>
               <table class="w-full text-sm">
                 <thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Monto</th><th>Desc</th></tr></thead>
@@ -258,14 +280,8 @@
         <!-- ESTADÍSTICAS -->
         <section id="tab-estadisticas" class="tab hidden mt-4">
           <div class="grid md:grid-cols-2 gap-4">
-            <div class="bg-white p-4 rounded shadow" style="height:320px">
-              <h3 class="font-semibold mb-2">Top Productos (últimos 90 días)</h3>
-              <canvas id="chartTopProducts" height="280"></canvas>
-            </div>
-            <div class="bg-white p-4 rounded shadow" style="height:320px">
-              <h3 class="font-semibold mb-2">Ventas por día (últimos 30 días)</h3>
-              <canvas id="chartVentasPorDia" height="280"></canvas>
-            </div>
+            <div class="bg-white p-4 rounded shadow" style="height:320px"><h3 class="font-semibold mb-2">Top Productos (últimos 90 días)</h3><canvas id="chartTopProducts" height="280"></canvas></div>
+            <div class="bg-white p-4 rounded shadow" style="height:320px"><h3 class="font-semibold mb-2">Ventas por día (últimos 30 días)</h3><canvas id="chartVentasPorDia" height="280"></canvas></div>
           </div>
         </section>
 
@@ -275,10 +291,7 @@
             <!-- Crear empleado -->
             <div class="bg-white p-4 rounded shadow space-y-2">
               <h3 class="font-semibold text-lg">Crear Empleado (desde admin)</h3>
-              <div class="text-sm text-slate-600">
-                Código de Empresa:
-                <span id="companyIdLabel" class="font-mono bg-slate-100 px-2 py-1 rounded"></span>
-              </div>
+              <div class="text-sm text-slate-600">Código de Empresa: <span id="companyIdLabel" class="font-mono bg-slate-100 px-2 py-1 rounded"></span></div>
               <input id="invName" type="text" placeholder="Nombre del empleado" class="w-full border rounded p-2">
               <input id="invEmail" type="email" placeholder="Email del empleado (requerido)" class="w-full border rounded p-2">
               <!-- IMPORTANTE: id esperado por tu JS -->
@@ -288,18 +301,14 @@
                 <option value="admin">Administrador (co-propietario)</option>
               </select>
               <button id="btnCreateEmployee" class="w-full bg-emerald-600 text-white py-2 rounded">Crear empleado</button>
-              <p class="text-xs text-slate-500">
-                El administrador define correo y contraseña; el empleado podrá iniciar sesión con esos datos.
-              </p>
+              <p class="text-xs text-slate-500">El administrador define correo y contraseña; el empleado podrá iniciar sesión con esos datos.</p>
             </div>
 
             <!-- Empleados -->
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Empleados</h3>
               <table class="w-full text-sm">
-                <thead class="text-left">
-                  <tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th></th></tr>
-                </thead>
+                <thead class="text-left"><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
                 <tbody id="tbEmployees"></tbody>
               </table>
             </div>
@@ -309,6 +318,10 @@
       </div>
     </div>
   </div>
+
+  <!-- PDF libs -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.25/dist/jspdf.plugin.autotable.min.js"></script>
 
   <!-- Llamamos al JS principal que contiene toda la lógica -->
   <script type="module" src="js/app.js"></script>

@@ -1,5 +1,8 @@
-// app.js (reemplaza todo el archivo js/app.js con esto)
+/* app.js (reemplaza todo el archivo js/app.js con esto) */
 
+/**************************************************************************
+ * FIREBASE CONFIG
+ **************************************************************************/
 const firebaseConfig = {
   apiKey: "AIzaSyCTFSlLoKv6KKujTqjMeMjNc-AlKQ2-rng",
   authDomain: "duostyle01-611b9.firebaseapp.com",
@@ -57,7 +60,14 @@ let userRole = "admin"; // 'admin' | 'empleado'
    - Nota: dejamos el registro por cliente solo para ADMIN.
    - Crear EMPLEADOS debe hacerlo el ADMIN desde el panel (usa Cloud Function).
    ====================== */
-$("#loginForm").addEventListener("submit", async (e) => {
+const regRoleSel = $("#regRole");
+const employeeExtra = $("#employeeExtra");
+regRoleSel?.addEventListener("change", () => {
+  if (!employeeExtra) return;
+  employeeExtra.classList.toggle("hidden", regRoleSel.value !== "empleado");
+});
+
+$("#loginForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = $("#loginEmail").value.trim();
   const pass = $("#loginPass").value.trim();
@@ -68,7 +78,7 @@ $("#loginForm").addEventListener("submit", async (e) => {
   }
 });
 
-$("#registerForm").addEventListener("submit", async (e) => {
+$("#registerForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = $("#regName").value.trim();
   const email = $("#regEmail").value.trim();
@@ -108,14 +118,13 @@ $("#registerForm").addEventListener("submit", async (e) => {
     await setDoc(doc(db, "companies", cid, "state", "balances"), { cajaEmpresa: 0, deudasTotales: 0 });
 
     alert("Cuenta de administrador creada. Inicia sesión.");
-    // No forzamos logout aquí (ya está autenticado)
   } catch (err) {
     console.error("register error:", err);
     alert("Error creating account: " + err.message);
   }
 });
 
-$("#btnLogout").addEventListener("click", () => signOut(auth));
+$("#btnLogout")?.addEventListener("click", () => signOut(auth));
 
 /* ======================
    onAuthStateChanged: multi-tenant + planActive + role
@@ -199,13 +208,15 @@ onAuthStateChanged(auth, async (user) => {
     setupPosSearch();
     setupCharts();
     setupCajaControls();
-    setupGastosHandlers();
+    setupEgresosHandlers();
+    setupIngresosHandlers();
 
     subscribeInventory();
     subscribeSales();
     subscribeBalances();
     await loadSalesOnce();
-    await loadGastosOnce();
+    await loadEgresosOnce();
+    await loadIngresosOnce();
     await loadMovimientos("7d");
 
     // users (admin functions) - render list & hook create employee
@@ -223,14 +234,14 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 /* ======================
-   ROLE handling AQUI ELIJO QUE VE CADA EMPLEADO  Y QUE NO
+   ROLE handling — AQUI ELIJO QUE VE CADA EMPLEADO  Y QUE NO
    ====================== */
 function applyRoleVisibility() {
   if (userRole === "empleado") {
-    // empleado: solo ventas y gastos
+    // empleado: solo ventas y egresos/ingresos (puedes cambiar)
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
-      btn.style.display = (t === "ventas" || t === "gastos" || t === "inventario" ) ? "" : "none";
+      btn.style.display = (t === "ventas" || t === "egresos" || t === "ingresos") ? "" : "none";
     });
     $("[data-tab='ventas']").click();
   } else {
@@ -442,15 +453,14 @@ function editProductModal(productId) {
     .then(() => alert("Producto actualizado")).catch(err => { console.error(err); alert("Error actualizando"); });
 }
 
-
-
 /* ======================
    POS / VENTAS
    ====================== */
 function setupPosHandlers() {
   $("#btnAddCartLine").onclick = () => createCartLine();
-  $("#btnClearCart").onclick = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
-  $("#btnSubmitSale").onclick = submitSaleHandler;
+  $("#btnClearCart").onclick   = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
+  $("#btnSubmitSale").onclick  = submitSaleHandler;
+  $("#btnExportSalesRange")?.addEventListener("click", exportSalesRangePrompt);
   createCartLine(); // línea por defecto
 }
 
@@ -499,18 +509,18 @@ function createCartLine() {
     const pid = e.target.value;
     if (!pid) {
       tr.querySelector(".linePrice").value = 0;
-      tr.querySelector(".lineQty").value = 1;
+      tr.querySelector(".lineQty").value   = 1;
       updateLineSubtotal(tr);
       return;
     }
     const p = inventoryCache.get(pid);
     tr.dataset.productId = pid;
     tr.querySelector(".linePrice").value = p.price || 0;
-    tr.querySelector(".lineQty").value = 1;
+    tr.querySelector(".lineQty").value   = 1;
     updateLineSubtotal(tr);
   };
 
-  tr.querySelector(".lineQty").oninput = () => updateLineSubtotal(tr);
+  tr.querySelector(".lineQty").oninput   = () => updateLineSubtotal(tr);
   tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
   tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
 }
@@ -523,9 +533,9 @@ function populateProductSelectElement(selectEl) {
     opt.value = p.id;
     const attrs = [];
     if (p.attributes?.gender) attrs.push(p.attributes.gender);
-    if (p.attributes?.size) attrs.push(p.attributes.size);
-    if (p.attributes?.color) attrs.push(p.attributes.color);
-    if (p.attributes?.team) attrs.push(p.attributes.team);
+    if (p.attributes?.size)   attrs.push(p.attributes.size);
+    if (p.attributes?.color)  attrs.push(p.attributes.color);
+    if (p.attributes?.team)   attrs.push(p.attributes.team);
     const skuPart = p.sku ? ` SKU:${p.sku}` : '';
     opt.text = `${p.name} ${attrs.length ? "(" + attrs.join(" • ") + ")" : ""}${skuPart} — Stock: ${p.stock || 0}`;
     selectEl.appendChild(opt);
@@ -587,9 +597,9 @@ function setupPosSearch() {
       div.dataset.pid = p.id;
       const attrs = [];
       if (p.attributes?.gender) attrs.push(p.attributes.gender);
-      if (p.attributes?.size) attrs.push(p.attributes.size);
-      if (p.attributes?.color) attrs.push(p.attributes.color);
-      if (p.attributes?.team) attrs.push(p.attributes.team);
+      if (p.attributes?.size)   attrs.push(p.attributes.size);
+      if (p.attributes?.color)  attrs.push(p.attributes.color);
+      if (p.attributes?.team)   attrs.push(p.attributes.team);
       div.textContent = `${p.name}${attrs.length ? " (" + attrs.join(" • ") + ")" : ""} — Stock: ${p.stock || 0}`;
       div.onclick = () => { addProductToCart(p.id); resultsDiv.classList.add("hidden"); input.value = ""; };
       resultsDiv.appendChild(div);
@@ -781,6 +791,7 @@ function renderSalesTable() {
       <td class="border px-2 py-1">${(sale.items || []).map(i => `${i.qty} x ${i.name}`).join("<br>")}</td>
       <td class="border px-2 py-1">
         <button class="bg-red-500 text-white px-2 py-1 rounded text-xs delete-sale" data-id="${sale.id}">Eliminar</button>
+        <button class="bg-slate-800 text-white px-2 py-1 rounded text-xs ml-1 btnDownloadSalePdf" data-id="${sale.id}">PDF</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -792,6 +803,65 @@ function renderSalesTable() {
       if (confirm("¿Seguro que deseas eliminar esta venta?")) await deleteSale(saleId);
     };
   });
+
+  $$(".btnDownloadSalePdf").forEach(btn => btn.onclick = async () => {
+    const id = btn.dataset.id;
+    const saleSnap = await getDoc(doc(db, "companies", companyId, "sales", id));
+    if (!saleSnap.exists()) return alert("Venta no encontrada");
+    const sale = saleSnap.data();
+    downloadSalePdf(id, sale);
+  });
+}
+
+/* ======================
+   PDF helpers (ventas / egresos / ingresos / movimientos)
+   ====================== */
+async function downloadSalePdf(saleId, sale) {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("Factura", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`ID: ${saleId}`, 14, 28);
+    doc.text(`Fecha: ${new Date(sale.createdAt?.toDate?.() || Date.now()).toLocaleString()}`, 14, 34);
+    if (sale.client) doc.text(`Cliente: ${sale.client}`, 14, 40);
+    doc.text(`Total: ${money(sale.total)}`, 14, 46);
+
+    const rows = (sale.items || []).map(it => [it.name, String(it.qty), money(it.price), money(it.qty * it.price)]);
+    doc.autoTable({
+      startY: 60,
+      head: [['Producto','Cant.','Precio','Subtotal']],
+      body: rows
+    });
+
+    doc.save(`factura_${saleId}.pdf`);
+  } catch (err) {
+    console.error("downloadSalePdf error", err);
+    alert("Error generando PDF: " + err.message);
+  }
+}
+
+async function exportCollectionToPdf(title, docsArray, columns, filename) {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(title, 14, 20);
+    doc.setFontSize(10);
+    const rows = docsArray.map(d => columns.map(c => {
+      const v = d[c.key];
+      if (c.format === 'money') return money(v);
+      if (c.format === 'date') return (d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString() : (d.fecha || '-'));
+      return v ?? '-';
+    }));
+    doc.autoTable({ startY: 30, head: [columns.map(c => c.title)], body: rows });
+    doc.save(filename);
+  } catch (err) {
+    console.error("exportCollectionToPdf error", err);
+    alert("Error exportando PDF: " + err.message);
+  }
 }
 
 /* ======================
@@ -839,17 +909,14 @@ function updateCharts() {
   chartVentasPorDia.update();
 }
 
-
-
-
 /* ======================
    CAJA por rango / Movimientos
    ====================== */
 async function computeCajaTotal(fromDate, toDate) {
   try {
     const movCol = collection(db, "companies", companyId, "movements");
-    const q = query(movCol, where("cuenta","==","cajaEmpresa"), orderBy("createdAt","desc"));
-    const snap = await getDocs(q);
+    const qy = query(movCol, where("cuenta","==","cajaEmpresa"), orderBy("createdAt","desc"));
+    const snap = await getDocs(qy);
     let total = 0;
     snap.forEach(d => {
       const md = d.data();
@@ -893,21 +960,23 @@ function setupCajaControls() {
 }
 
 /* ======================
-   GASTOS
+   EGRESOS (antes 'Gastos')
    ====================== */
-function setupGastosHandlers() {
-  $("#btnSaveGasto")?.addEventListener("click", async (e) => {
+function setupEgresosHandlers() {
+  $("#btnSaveEgreso")?.addEventListener("click", async (e) => {
     e.preventDefault();
-    await createGasto();
+    await createEgreso();
   });
+
+  $("#btnExportEgresosRange")?.addEventListener("click", exportEgresosRangePrompt);
 }
 
-async function createGasto() {
-  const fechaStr = $("#gastoFecha").value;
-  const cat = $("#gastoCat").value.trim();
-  const monto = Number($("#gastoMonto").value || 0);
-  const desc = $("#gastoDesc").value.trim() || null;
-  const pagadoPor = $("#gastoPagadoPor").value || "empresa";
+async function createEgreso() {
+  const fechaStr = $("#egresoFecha").value;
+  const cat = $("#egresoCat").value.trim();
+  const monto = Number($("#egresoMonto").value || 0);
+  const desc = $("#egresoDesc").value.trim() || null;
+  const pagadoPor = $("#egresoPagadoPor").value || "empresa";
   if (!fechaStr || !cat || !monto || monto <= 0) return alert("Completa fecha, categoría y monto válidos");
 
   try {
@@ -916,95 +985,160 @@ async function createGasto() {
       const balancesSnap = await tx.get(balancesRef);
       const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
 
-      const gastoRef = doc(collection(db, "companies", companyId, "gastos"));
+      const gastoRef = doc(collection(db, "companies", companyId, "egresos"));
       tx.set(gastoRef, { fecha: fechaStr, categoria: cat, monto, descripcion: desc, pagadoPor, createdAt: serverTimestamp(), createdBy: currentUser.uid });
 
       if (pagadoPor === "empresa") {
         const movRef = doc(collection(db, "companies", companyId, "movements"));
-        tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: fechaStr, monto, desc: `Gasto: ${cat} ${desc?('- '+desc):''}`, gastoId: gastoRef.id, createdAt: serverTimestamp() });
+        tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: fechaStr, monto, desc: `Egreso: ${cat} ${desc?('- '+desc):''}`, egresoId: gastoRef.id, createdAt: serverTimestamp() });
         const newCaja = oldCaja - monto;
         if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
         else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
       }
     });
 
-    alert("Gasto registrado correctamente.");
-    ["#gastoFecha","#gastoCat","#gastoMonto","#gastoDesc"].forEach(s => { try { $(s).value=""; } catch(e){} });
-    $("#gastoPagadoPor").value = "empresa";
-    await loadGastosOnce();
+    alert("Egreso registrado correctamente.");
+    ["#egresoFecha","#egresoCat","#egresoMonto","#egresoDesc"].forEach(s => { try { $(s).value=""; } catch(e){} });
+    $("#egresoPagadoPor").value = "empresa";
+    await loadEgresosOnce();
   } catch (err) {
-    console.error("createGasto error:", err);
-    alert("Error registrando gasto: " + err.message);
+    console.error("createEgreso error:", err);
+    alert("Error registrando egreso: " + err.message);
   }
 }
 
-async function loadGastosOnce() {
+async function loadEgresosOnce() {
   try {
-    const q = query(collection(db, "companies", companyId, "gastos"), orderBy("createdAt","desc"));
+    const q = query(collection(db, "companies", companyId, "egresos"), orderBy("createdAt","desc"));
     const docs = await getDocs(q);
     const arr = docs.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderGastosTable(arr);
-  } catch (err) { console.error("loadGastosOnce", err); }
+    renderEgresosTable(arr);
+  } catch (err) { console.error("loadEgresosOnce", err); }
 }
 
-function renderGastosTable(gastosArray) {
-  const tb = $("#tbGastos");
+function renderEgresosTable(egresosArray) {
+  const tb = $("#tbEgresos");
   if (!tb) return;
   tb.innerHTML = "";
-  if (!gastosArray.length) {
-    tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay gastos registrados.</td></tr>`;
+  if (!egresosArray.length) {
+    tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay egresos registrados.</td></tr>`;
     return;
   }
-  gastosArray.forEach(g => {
+  egresosArray.forEach(g => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${g.fecha}</td>
       <td>${escapeHtml(g.categoria)}</td>
       <td>${money(g.monto)}</td>
       <td>${escapeHtml(g.descripcion || '')}</td>
-      <td><button class="bg-red-500 text-white px-2 py-1 rounded text-xs delete-gasto" data-id="${g.id}">Eliminar</button></td>
+      <td><button class="bg-red-500 text-white px-2 py-1 rounded text-xs delete-egreso" data-id="${g.id}">Eliminar</button></td>
     `;
     tb.appendChild(tr);
   });
 
-  $$(".delete-gasto").forEach(btn => btn.onclick = async () => {
+  $$(".delete-egreso").forEach(btn => btn.onclick = async () => {
     const id = btn.dataset.id;
-    if (confirm("Eliminar gasto? Esto restaurará el dinero en caja si el gasto salió de la empresa.")) {
-      await deleteGasto(id);
+    if (confirm("Eliminar egreso? Esto restaurará el dinero en caja si el egreso salió de la empresa.")) {
+      await deleteEgreso(id);
     }
-  })
+  });
 }
 
-async function deleteGasto(gastoId) {
+async function deleteEgreso(egresoId) {
   try {
     await runTransaction(db, async (tx) => {
-      const gastoRef = doc(db, "companies", companyId, "gastos", gastoId);
-      const gastoSnap = await tx.get(gastoRef);
-      if (!gastoSnap.exists()) throw new Error("Gasto no encontrado");
-      const gasto = gastoSnap.data();
+      const egresoRef = doc(db, "companies", companyId, "egresos", egresoId);
+      const egresoSnap = await tx.get(egresoRef);
+      if (!egresoSnap.exists()) throw new Error("Egreso no encontrado");
+      const egreso = egresoSnap.data();
 
       const balancesRef = doc(db, "companies", companyId, "state", "balances");
       const balancesSnap = await tx.get(balancesRef);
       const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
 
-      if (gasto.pagadoPor === "empresa") {
-        const newCaja = oldCaja + Number(gasto.monto || 0);
+      if (egreso.pagadoPor === "empresa") {
+        const newCaja = oldCaja + Number(egreso.monto || 0);
         if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
         else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
 
         const movRef = doc(collection(db, "companies", companyId, "movements"));
-        tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: gasto.monto, desc: `Reversión Gasto ID ${gastoId}`, gastoId, createdAt: serverTimestamp() });
+        tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: egreso.monto, desc: `Reversión Egreso ID ${egresoId}`, egresoId, createdAt: serverTimestamp() });
       }
 
-      tx.delete(gastoRef);
+      tx.delete(egresoRef);
     });
 
-    alert("Gasto eliminado y caja ajustada (si aplica).");
-    await loadGastosOnce();
+    alert("Egreso eliminado y caja ajustada (si aplica).");
+    await loadEgresosOnce();
   } catch (err) {
-    console.error("deleteGasto error:", err);
-    alert("Error al eliminar gasto: " + err.message);
+    console.error("deleteEgreso error:", err);
+    alert("Error al eliminar egreso: " + err.message);
   }
+}
+
+/* ======================
+   INGRESOS
+   ====================== */
+function setupIngresosHandlers() {
+  $("#btnSaveIngreso")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    await createIngreso();
+  });
+
+  $("#btnExportIngresosRange")?.addEventListener("click", exportIngresosRangePrompt);
+}
+
+async function createIngreso() {
+  const fechaStr = $("#ingresoFecha").value;
+  const cat = $("#ingresoCat").value.trim();
+  const monto = Number($("#ingresoMonto").value || 0);
+  const desc = $("#ingresoDesc").value.trim() || null;
+  if (!fechaStr || !cat || !monto || monto <= 0) return alert("Completa fecha, categoría y monto válidos");
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const balancesSnap = await tx.get(balancesRef);
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+
+      const ingresoRef = doc(collection(db, "companies", companyId, "ingresos"));
+      tx.set(ingresoRef, { fecha: fechaStr, categoria: cat, monto, descripcion: desc, createdAt: serverTimestamp(), createdBy: currentUser.uid });
+
+      const movRef = doc(collection(db, "companies", companyId, "movements"));
+      tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: fechaStr, monto, desc: `Ingreso: ${cat} ${desc?('- '+desc):''}`, ingresoId: ingresoRef.id, createdAt: serverTimestamp() });
+      const newCaja = oldCaja + monto;
+      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
+      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+    });
+
+    alert("Ingreso registrado correctamente.");
+    ["#ingresoFecha","#ingresoCat","#ingresoMonto","#ingresoDesc"].forEach(s => { try { $(s).value=""; } catch(e){} });
+    await loadIngresosOnce();
+  } catch (err) {
+    console.error("createIngreso error:", err);
+    alert("Error registrando ingreso: " + err.message);
+  }
+}
+
+async function loadIngresosOnce() {
+  try {
+    const q = query(collection(db, "companies", companyId, "ingresos"), orderBy("createdAt","desc"));
+    const docs = await getDocs(q);
+    const arr = docs.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderIngresosTable(arr);
+  } catch (err) { console.error("loadIngresosOnce", err); }
+}
+
+function renderIngresosTable(arr) {
+  const tb = $("#tbIngresos");
+  if (!tb) return;
+  tb.innerHTML = "";
+  if (!arr.length) { tb.innerHTML = `<tr><td colspan="4" class="small text-slate-500">No hay ingresos registrados.</td></tr>`; return; }
+  arr.forEach(i => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${i.fecha}</td><td>${escapeHtml(i.categoria)}</td><td>${money(i.monto)}</td><td>${escapeHtml(i.descripcion || '')}</td>`;
+    tb.appendChild(tr);
+  });
 }
 
 /* ======================
@@ -1013,8 +1147,8 @@ async function deleteGasto(gastoId) {
 async function loadMovimientos(range = "7d") {
   try {
     const movCol = collection(db, "companies", companyId, "movements");
-    const q = query(movCol, orderBy("createdAt","desc"));
-    const snap = await getDocs(q);
+    const qy = query(movCol, orderBy("createdAt","desc"));
+    const snap = await getDocs(qy);
     const arr = [];
     snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
 
@@ -1055,6 +1189,7 @@ document.addEventListener("click", (ev) => {
   if (ev.target && ev.target.id === "btnMovHoy") loadMovimientos("today");
   if (ev.target && ev.target.id === "btnMov7d") loadMovimientos("7d");
   if (ev.target && ev.target.id === "btnMov30d") loadMovimientos("30d");
+  if (ev.target && ev.target.id === "btnExportMovimientosRange") exportMovimientosRangePrompt();
 });
 
 /* ======================
@@ -1062,58 +1197,41 @@ document.addEventListener("click", (ev) => {
    ====================== */
 function setupUsersHandlers() {
   // si existe el botón de crear empleado, lo dejamos para crear cuenta + contraseña
-  const btnCreate = $("#btnCreateEmployee") || $("#btnCreateInvite") || null;
-
-  if (!btnCreate) return;
-
-  // preferimos btnCreateEmployee (nuevo flujo), si no existe intentamos btnCreateInvite (compatibilidad)
   const createBtn = $("#btnCreateEmployee");
-  if (createBtn) {
-    createBtn.onclick = async () => {
-      const name = $("#invName").value.trim() || null;
-      const email = $("#invEmail").value.trim() || null;
-      const pass = $("#invPass") ? $("#invPass").value : null;
-      const role = $("#invRole").value || "empleado";
+  if (!createBtn) return;
 
-      if (!email || !pass) return alert("Email y contraseña requeridos para crear empleado.");
+  createBtn.onclick = async () => {
+    const name = $("#invName").value.trim() || null;
+    const email = $("#invEmail").value.trim() || null;
+    const pass = $("#invPass").value || null;
+    const role = $("#invRole").value || "empleado";
 
-     try {
-  // 🔗 Llamada a la Cloud Function "createEmployee"
-  const createEmployee = httpsCallable(functions, "createEmployee");
+    if (!email || !pass) return alert("Email y contraseña requeridos para crear empleado.");
 
-  // 📤 Enviar datos al backend con las claves correctas
-  const res = await createEmployee({
-    email,
-    password: pass,  // La contraseña que escribiste en el formulario
-    name,            // ✅ ahora coincide con lo que espera el backend
-    role,
-    companyId
-  });
+    try {
+      // Llamada a la Cloud Function "createEmployee" (callable)
+      const createEmployee = httpsCallable(functions, "createEmployee");
+      const res = await createEmployee({
+        email,
+        password: pass,
+        name,
+        role,
+        companyId
+      });
 
-  // 📥 Confirmación
-  alert("Empleado creado correctamente (uid: " + res.data.uid + ").");
+      alert("Empleado creado correctamente (uid: " + res.data.uid + ").");
 
-  // 🧹 Limpiar el formulario
-  $("#invName").value = "";
-  $("#invEmail").value = "";
-  if ($("#invPass")) $("#invPass").value = "";
-  $("#invRole").value = "empleado";
-
-} catch (err) {
-  // 🚨 Manejo de errores
-  console.error("createEmployee error:", err);
-  const msg = (err?.message || err?.code || "Error creando empleado");
-  alert("Error creando empleado: " + msg);
-}
-
-    };
-    return;
-  }
-
-  // fallback: existing "invite" button (no-op if you removed invites)
-  $("#btnCreateInvite")?.addEventListener("click", async () => {
-    alert("En esta versión preferimos que el administrador cree empleados (email+password) directamente. Usa la opción para crear empleado con contraseña.");
-  });
+      // limpiar form
+      $("#invName").value = "";
+      $("#invEmail").value = "";
+      if ($("#invPass")) $("#invPass").value = "";
+      $("#invRole").value = "empleado";
+    } catch (err) {
+      console.error("createEmployee error:", err);
+      const msg = (err?.message || err?.code || "Error creando empleado");
+      alert("Error creando empleado: " + msg);
+    }
+  };
 }
 
 /* listar usuarios vinculados a la company (solo admin) */
@@ -1136,7 +1254,7 @@ function subscribeUsersIfAdmin() {
 }
 
 function renderUsersTable(users) {
-  const tb = $("#tbInvites") || $("#tbUsers"); // reutilizamos un tbody
+  const tb = $("#tbEmployees") || $("#tbInvites") || $("#tbUsers");
   if (!tb) return;
   tb.innerHTML = "";
   if (!users.length) {
@@ -1146,11 +1264,10 @@ function renderUsersTable(users) {
   users.forEach(u => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${u.createdAt?.toDate ? u.createdAt.toDate().toLocaleString() : "-"}</td>
       <td>${escapeHtml(u.displayName || "")}</td>
       <td>${u.email || "-"}</td>
       <td>${u.role || "empleado"}</td>
-      <td>${u.companyId || "-"}</td>
+      <td>${u.createdAt?.toDate ? u.createdAt.toDate().toLocaleString() : "-"}</td>
       <td>
         ${u.role === "empleado" ? `<button class="px-2 py-1 border rounded text-xs btnMakeAdmin" data-uid="${u.id}">Hacer admin</button>` : ""}
       </td>
@@ -1162,15 +1279,103 @@ function renderUsersTable(users) {
     const uid = b.dataset.uid;
     if (!confirm("Convertir usuario en administrador?")) return;
     try {
-      // Only the Cloud Function (or server admin SDK) should change user roles; for now update users/{uid}.role (requires rules)
       await updateDoc(doc(db, "users", uid), { role: "admin" });
-      alert("Usuario actualizado a admin (nota: para que los custom claims actualicen, desplegar una función que sincronice claims o pedir al usuario que vuelva a loguear).");
+      alert("Usuario actualizado a admin (el usuario debe reloguear para ver cambios).");
     } catch (err) { console.error(err); alert("Error actualizando rol: "+err.message); }
   });
 }
 
 /* ======================
-   UTILS
+   EXPORT / PDF range prompts
+   ====================== */
+function parseDateInput(str) {
+  if (!str) return null;
+  const d = new Date(str);
+  if (isNaN(d)) return null;
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+async function exportSalesRangePrompt() {
+  const fromStr = prompt("Fecha desde (YYYY-MM-DD)");
+  const toStr = prompt("Fecha hasta (YYYY-MM-DD)");
+  const from = parseDateInput(fromStr); const to = parseDateInput(toStr);
+  if (!from || !to) return alert("Fechas inválidas");
+  to.setHours(23,59,59,999);
+  // fetch sales in range
+  const snap = await getDocs(query(collection(db,"companies",companyId,"sales"), orderBy("createdAt","desc")));
+  const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const filtered = arr.filter(s => {
+    const created = s.createdAt?.toDate ? s.createdAt.toDate() : null;
+    return created && created >= from && created <= to;
+  });
+  await exportCollectionToPdf(`Ventas ${formatDateForLabel(from)} → ${formatDateForLabel(to)}`, filtered, [
+    { key: 'createdAt', title: 'Fecha', format: 'date' },
+    { key: 'client', title: 'Cliente' },
+    { key: 'total', title: 'Total', format: 'money' }
+  ], `ventas_${formatDateForLabel(from)}_${formatDateForLabel(to)}.pdf`);
+}
+
+async function exportEgresosRangePrompt() {
+  const fromStr = prompt("Fecha desde (YYYY-MM-DD)");
+  const toStr = prompt("Fecha hasta (YYYY-MM-DD)");
+  const from = parseDateInput(fromStr); const to = parseDateInput(toStr);
+  if (!from || !to) return alert("Fechas inválidas");
+  to.setHours(23,59,59,999);
+  const snap = await getDocs(query(collection(db,"companies",companyId,"egresos"), orderBy("createdAt","desc")));
+  const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const filtered = arr.filter(s => {
+    const created = s.createdAt?.toDate ? s.createdAt.toDate() : (s.fecha ? new Date(s.fecha) : null);
+    return created && created >= from && created <= to;
+  });
+  await exportCollectionToPdf(`Egresos ${formatDateForLabel(from)} → ${formatDateForLabel(to)}`, filtered, [
+    { key: 'fecha', title: 'Fecha' },
+    { key: 'categoria', title: 'Categoria' },
+    { key: 'monto', title: 'Monto', format: 'money' }
+  ], `egresos_${formatDateForLabel(from)}_${formatDateForLabel(to)}.pdf`);
+}
+
+async function exportIngresosRangePrompt() {
+  const fromStr = prompt("Fecha desde (YYYY-MM-DD)");
+  const toStr = prompt("Fecha hasta (YYYY-MM-DD)");
+  const from = parseDateInput(fromStr); const to = parseDateInput(toStr);
+  if (!from || !to) return alert("Fechas inválidas");
+  to.setHours(23,59,59,999);
+  const snap = await getDocs(query(collection(db,"companies",companyId,"ingresos"), orderBy("createdAt","desc")));
+  const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const filtered = arr.filter(s => {
+    const created = s.createdAt?.toDate ? s.createdAt.toDate() : (s.fecha ? new Date(s.fecha) : null);
+    return created && created >= from && created <= to;
+  });
+  await exportCollectionToPdf(`Ingresos ${formatDateForLabel(from)} → ${formatDateForLabel(to)}`, filtered, [
+    { key: 'fecha', title: 'Fecha' },
+    { key: 'categoria', title: 'Categoria' },
+    { key: 'monto', title: 'Monto', format: 'money' }
+  ], `ingresos_${formatDateForLabel(from)}_${formatDateForLabel(to)}.pdf`);
+}
+
+async function exportMovimientosRangePrompt() {
+  const fromStr = prompt("Fecha desde (YYYY-MM-DD)");
+  const toStr = prompt("Fecha hasta (YYYY-MM-DD)");
+  const from = parseDateInput(fromStr); const to = parseDateInput(toStr);
+  if (!from || !to) return alert("Fechas inválidas");
+  to.setHours(23,59,59,999);
+  const snap = await getDocs(query(collection(db,"companies",companyId,"movements"), orderBy("createdAt","desc")));
+  const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const filtered = arr.filter(s => {
+    const created = s.createdAt?.toDate ? s.createdAt.toDate() : (s.fecha ? new Date(s.fecha) : null);
+    return created && created >= from && created <= to;
+  });
+  await exportCollectionToPdf(`Movimientos ${formatDateForLabel(from)} → ${formatDateForLabel(to)}`, filtered, [
+    { key: 'fecha', title: 'Fecha' },
+    { key: 'tipo', title: 'Tipo' },
+    { key: 'cuenta', title: 'Cuenta' },
+    { key: 'monto', title: 'Monto', format: 'money' }
+  ], `movimientos_${formatDateForLabel(from)}_${formatDateForLabel(to)}.pdf`);
+}
+
+/* ======================
+   UTILs
    ====================== */
 function escapeHtml(s) {
   if (!s) return '';
@@ -1178,18 +1383,19 @@ function escapeHtml(s) {
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c];
   });
 }
+
 function normalizeForSearch(str) {
   if (!str) return "";
   return String(str).normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
 
 /* ======================
-   Boot
+   BOOT
    ====================== */
 window.addEventListener("DOMContentLoaded", () => {
   try { setupPosHandlers(); } catch(e) { /* ignore */ }
+  try { setupCajaControls(); } catch(e) {}
 });
 
-/* expose debug */
 window._dbg = { db, inventoryCache, salesCache, runTransaction };
 /* FIN app.js */
