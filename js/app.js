@@ -1,735 +1,1195 @@
-// ==============================
-// app.js - Parte 1 (líneas 1–400)
-// ==============================
+// app.js (reemplaza todo el archivo js/app.js con esto)
 
-// Inicialización de base de datos en localStorage
-// Multi-tenant: cada empresa tiene sus propios datos aislados
-const DB_KEY = "app_registro_db_v1";
+const firebaseConfig = {
+  apiKey: "AIzaSyCTFSlLoKv6KKujTqjMeMjNc-AlKQ2-rng",
+  authDomain: "duostyle01-611b9.firebaseapp.com",
+  projectId: "duostyle01-611b9",
+  storageBucket: "duostyle01-611b9.firebasestorage.app",
+  messagingSenderId: "4630065257",
+  appId: "1:4630065257:web:11b7b0a0ac2fa776bbf2f8",
+  measurementId: "G-FW6QEJMZKT"
+};
 
-// Estructura base de la BD
-function getDB() {
-  const db = JSON.parse(localStorage.getItem(DB_KEY) || "{}");
-  if (!db.users) db.users = [];        // usuarios globales
-  if (!db.companies) db.companies = []; // cada empresa con sus datos
-  return db;
-}
+/* ======================
+   IMPORTS (Firebase modular SDK)
+   ====================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, signOut, updateProfile
+} from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
 
-function saveDB(db) {
-  localStorage.setItem(DB_KEY, JSON.stringify(db));
-}
+import {
+  getFirestore, doc, setDoc, getDoc, addDoc, getDocs, onSnapshot,
+  collection, query, orderBy, serverTimestamp, updateDoc, deleteDoc,
+  runTransaction, where, limit
+} from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
-// ==============================
-// UTILIDADES
-// ==============================
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
 
-function genId(prefix = "id") {
-  return prefix + "_" + Math.random().toString(36).substr(2, 9);
-}
+/* ======================
+   INIT
+   ====================== */
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const functions = getFunctions(app);
 
-function todayISO() {
-  return new Date().toISOString().split("T")[0];
-}
+/* ======================
+   HELPERS UI
+   ====================== */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const money = n => `$${Number(n||0).toLocaleString('es-CO',{maximumFractionDigits:2})}`;
 
-function formatMoney(num) {
-  return "$" + (num || 0).toLocaleString("es-CO", { minimumFractionDigits: 0 });
-}
-
-function parseMoney(str) {
-  return parseFloat(str) || 0;
-}
-
-// ==============================
-// SESIÓN
-// ==============================
+/* ======================
+   STATE
+   ====================== */
 let currentUser = null;
-let currentCompany = null;
+let companyId = null;
+let unsubscribers = [];
+let inventoryCache = new Map();
+let salesCache = [];
+let userRole = "admin"; // 'admin' | 'empleado'
 
-function saveSession(userId) {
-  localStorage.setItem("currentUserId", userId);
-}
-
-function loadSession() {
-  const id = localStorage.getItem("currentUserId");
-  if (!id) return null;
-  const db = getDB();
-  const user = db.users.find(u => u.id === id);
-  return user || null;
-}
-
-function logout() {
-  localStorage.removeItem("currentUserId");
-  currentUser = null;
-  currentCompany = null;
-  document.getElementById("mainView").classList.add("hidden");
-  document.getElementById("authView").classList.remove("hidden");
-}
-
-// ==============================
-// AUTH - REGISTRO & LOGIN
-// ==============================
-document.getElementById("registerForm").addEventListener("submit", e => {
+/* ======================
+   AUTH: login / register (UI)
+   - Nota: dejamos el registro por cliente solo para ADMIN.
+   - Crear EMPLEADOS debe hacerlo el ADMIN desde el panel (usa Cloud Function).
+   ====================== */
+$("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const db = getDB();
+  const email = $("#loginEmail").value.trim();
+  const pass = $("#loginPass").value.trim();
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch (err) {
+    alert("Error login: " + err.message);
+  }
+});
 
-  const name = document.getElementById("regName").value.trim();
-  const email = document.getElementById("regEmail").value.trim().toLowerCase();
-  const pass = document.getElementById("regPass").value.trim();
-  const role = document.getElementById("regRole").value;
+$("#registerForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = $("#regName").value.trim();
+  const email = $("#regEmail").value.trim();
+  const pass = $("#regPass").value.trim();
+  const role = $("#regRole").value || "admin";
 
-  if (db.users.find(u => u.email === email)) {
-    alert("Este email ya está registrado");
+  if (role === "empleado") {
+    alert("Los empleados deben ser creados por un administrador desde el panel (no por registro público).");
     return;
   }
 
-  let companyId = null;
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    await updateProfile(cred.user, { displayName: name });
 
-  if (role === "admin") {
-    // Crear empresa
-    companyId = genId("comp");
-    db.companies.push({
-      id: companyId,
-      name: name + " — Empresa",
-      createdAt: Date.now(),
-      products: [],
-      sales: [],
-      gastos: [],
-      movimientos: [],
-      empleados: [],
-      deudas: []
+    // usuario doc
+    const uid = cred.user.uid;
+    const cid = `${uid}-company`;
+    await setDoc(doc(db, "users", uid), {
+      displayName: name,
+      email,
+      role: "admin",
+      planActive: true,
+      companyId: cid,
+      createdAt: serverTimestamp()
     });
-  } else {
-    // empleado
-    const code = document.getElementById("regCompanyCode").value.trim();
-    const invite = document.getElementById("regInviteCode").value.trim();
 
-    const company = db.companies.find(c => c.id === code);
-    if (!company) {
-      alert("Código de empresa inválido");
+    // company doc
+    await setDoc(doc(db, "companies", cid), {
+      name: `${name} — Empresa`,
+      owners: [{ uid, name }],
+      createdAt: serverTimestamp(),
+      planActive: true
+    });
+
+    // balances iniciales
+    await setDoc(doc(db, "companies", cid, "state", "balances"), { cajaEmpresa: 0, deudasTotales: 0 });
+
+    alert("Cuenta de administrador creada. Inicia sesión.");
+    // No forzamos logout aquí (ya está autenticado)
+  } catch (err) {
+    console.error("register error:", err);
+    alert("Error creating account: " + err.message);
+  }
+});
+
+$("#btnLogout").addEventListener("click", () => signOut(auth));
+
+/* ======================
+   onAuthStateChanged: multi-tenant + planActive + role
+   ====================== */
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+  // cleanup subs
+  unsubscribers.forEach(u => u && u());
+  unsubscribers = [];
+  inventoryCache.clear();
+  salesCache = [];
+  userRole = "admin";
+  companyId = null;
+
+  if (!user) {
+    $("#authView").classList.remove("hidden");
+    $("#mainView").classList.add("hidden");
+    return;
+  }
+
+  try {
+    // load user doc (if missing, create minimal fallback)
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      // fallback (this should be rare)
+      await setDoc(userRef, {
+        displayName: user.displayName || "User",
+        email: user.email || null,
+        role: "admin",
+        planActive: true,
+        companyId: `${user.uid}-company`,
+        createdAt: serverTimestamp()
+      });
+    }
+    const userData = (await getDoc(userRef)).data();
+    userRole = userData?.role || "admin";
+    companyId = userData?.companyId || `${user.uid}-company`;
+
+    // load company doc (create if missing)
+    const compRef = doc(db, "companies", companyId);
+    if (!(await getDoc(compRef)).exists()) {
+      await setDoc(compRef, {
+        name: `${user.displayName || "Empresa"} — Empresa`,
+        owners: [{ uid: user.uid, name: user.displayName || "Owner" }],
+        createdAt: serverTimestamp(),
+        planActive: true
+      });
+      await setDoc(doc(db, "companies", companyId, "state", "balances"), { cajaEmpresa: 0, deudasTotales: 0 });
+    }
+    const compData = (await getDoc(compRef)).data();
+
+    // check planActive
+    if (compData && compData.planActive === false) {
+      alert("⚠️ Esta empresa está INACTIVA. Contacta soporte.");
+      await signOut(auth);
       return;
     }
-    // validación de invitación omitida por simplicidad
-    companyId = company.id;
+
+    // show UI
+    $("#authView").classList.add("hidden");
+    $("#mainView").classList.remove("hidden");
+    $("#companyName").textContent = compData?.name || "Empresa — Demo";
+    $("#userRole").textContent = `Rol: ${userRole}`;
+    const lbl = $("#companyIdLabel"); if (lbl) lbl.textContent = companyId;
+
+    // realtime listener company -> sign out if planActive switches to false
+    const unsubComp = onSnapshot(compRef, snap => {
+      const d = snap.exists() ? snap.data() : null;
+      if (d && d.planActive === false) {
+        alert("El plan fue desactivado. Se cerrará la sesión.");
+        signOut(auth);
+      }
+    });
+    unsubscribers.push(unsubComp);
+
+    // init UI & subs
+    setupTabs();
+    setupInventoryHandlers();
+    setupPosHandlers();
+    setupPosSearch();
+    setupCharts();
+    setupCajaControls();
+    setupGastosHandlers();
+
+    subscribeInventory();
+    subscribeSales();
+    subscribeBalances();
+    await loadSalesOnce();
+    await loadGastosOnce();
+    await loadMovimientos("7d");
+
+    // users (admin functions) - render list & hook create employee
+    setupUsersHandlers();
+    subscribeUsersIfAdmin();
+
+    // role-based UI
+    applyRoleVisibility();
+
+  } catch (err) {
+    console.error("onAuthStateChanged error:", err);
+    try { await signOut(auth); } catch(e) {}
+    alert("Error verificando cuenta. Intenta de nuevo.");
   }
-
-  const userId = genId("usr");
-  const newUser = { id: userId, name, email, pass, role, companyId };
-  db.users.push(newUser);
-  saveDB(db);
-
-  alert("Usuario creado con éxito. Ya puedes iniciar sesión.");
-  document.getElementById("registerForm").reset();
 });
 
-document.getElementById("loginForm").addEventListener("submit", e => {
-  e.preventDefault();
-  const email = document.getElementById("loginEmail").value.trim().toLowerCase();
-  const pass = document.getElementById("loginPass").value.trim();
-
-  const db = getDB();
-  const user = db.users.find(u => u.email === email && u.pass === pass);
-  if (!user) {
-    alert("Credenciales incorrectas");
-    return;
-  }
-  saveSession(user.id);
-  currentUser = user;
-  currentCompany = db.companies.find(c => c.id === user.companyId);
-  showMainApp();
-});
-
-// Mostrar campos extras cuando elige "empleado"
-document.getElementById("regRole").addEventListener("change", e => {
-  document.getElementById("employeeExtra").classList.toggle("hidden", e.target.value !== "empleado");
-});
-
-// ==============================
-// MAIN APP VIEW
-// ==============================
-function showMainApp() {
-  if (!currentUser) return;
-  const db = getDB();
-  currentCompany = db.companies.find(c => c.id === currentUser.companyId);
-
-  document.getElementById("authView").classList.add("hidden");
-  document.getElementById("mainView").classList.remove("hidden");
-
-  document.getElementById("companyName").textContent = currentCompany.name;
-  document.getElementById("userRole").textContent = currentUser.role;
-
-  if (currentUser.role !== "admin") {
-    document.querySelector("[data-tab='usuarios']").classList.add("hidden");
+/* ======================
+   ROLE handling AQUI ELIJO QUE VE CADA EMPLEADO  Y QUE NO
+   ====================== */
+function applyRoleVisibility() {
+  if (userRole === "empleado") {
+    // empleado: solo ventas y gastos
+    $$(".tab-btn").forEach(btn => {
+      const t = btn.dataset.tab;
+      btn.style.display = (t === "ventas" || t === "gastos" || t === "inventario" ) ? "" : "none";
+    });
+    $("[data-tab='ventas']").click();
   } else {
-    document.querySelector("[data-tab='usuarios']").classList.remove("hidden");
-    document.getElementById("companyIdLabel").textContent = currentCompany.id;
+    $$(".tab-btn").forEach(btn => btn.style.display = "");
   }
-
-  refreshKPIs();
-  renderInventory();
-  renderSales();
-  renderGastos();
-  renderMovimientos();
-  renderEmployees();
 }
 
-// Logout
-document.getElementById("btnLogout").addEventListener("click", () => {
-  logout();
-});
-
-// Tabs
-document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach(b => {
-      b.classList.remove("bg-slate-900", "text-white");
-      b.classList.add("border");
-    });
-    btn.classList.add("bg-slate-900", "text-white");
-    btn.classList.remove("border");
-
-    document.querySelectorAll(".tab").forEach(tab => tab.classList.add("hidden"));
-    document.getElementById("tab-" + btn.dataset.tab).classList.remove("hidden");
+/* ======================
+   TABS UI
+   ====================== */
+function setupTabs() {
+  $$(".tab-btn").forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.tab;
+      $$(".tab-btn").forEach(b => b.classList.remove("bg-slate-900","text-white"));
+      btn.classList.add("bg-slate-900","text-white");
+      $$(".tab").forEach(t => t.classList.add("hidden"));
+      const el = $(`#tab-${id}`);
+      if (el) el.classList.remove("hidden");
+    };
   });
-});
-
-// ==============================
-// KPIs
-// ==============================
-function refreshKPIs() {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-
-  // Total caja (ventas - gastos)
-  const totalVentas = comp.sales.reduce((acc, s) => acc + s.total, 0);
-  const totalGastos = comp.gastos.reduce((acc, g) => acc + g.monto, 0);
-  const caja = totalVentas - totalGastos;
-  document.getElementById("kpiCajaEmpresa").textContent = formatMoney(caja);
-
-  // Inventario total
-  const inventarioTotal = comp.products.reduce((acc, p) => acc + (p.stock || 0), 0);
-  document.getElementById("kpiInventarioTotal").textContent = inventarioTotal;
-
-  // Deudas
-  const totalDeudas = comp.deudas.reduce((acc, d) => acc + d.monto, 0);
-  document.getElementById("kpiDeudas").textContent = formatMoney(totalDeudas);
+  $("[data-tab='ventas']").click();
 }
 
-// ==============================
-// INVENTARIO - Render
-// ==============================
-function renderInventory() {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-  const tbody = document.getElementById("tbInventory");
-  tbody.innerHTML = "";
-  comp.products.forEach(prod => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${prod.name}</td>
-      <td class="small">${prod.gender || ""} ${prod.size || ""} ${prod.color || ""} ${prod.team || ""}</td>
-      <td>${formatMoney(prod.price)}</td>
-      <td>${prod.stock || 0}</td>
-      <td>
-        <button data-id="${prod.id}" class="btnDelProd text-red-600">Eliminar</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  tbody.querySelectorAll(".btnDelProd").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      comp.products = comp.products.filter(p => p.id !== id);
-      saveDB(db);
-      renderInventory();
-      refreshKPIs();
+/* ======================
+   SUBSCRIPTIONS (inventory / sales / balances)
+   ====================== */
+function subscribeInventory() {
+  const invCol = collection(db, "companies", companyId, "inventory");
+  const q = query(invCol, orderBy("name"));
+  const unsub = onSnapshot(q, snap => {
+    snap.docChanges().forEach(ch => {
+      const id = ch.doc.id;
+      const data = { id, ...ch.doc.data() };
+      if (ch.type === "removed") inventoryCache.delete(id);
+      else inventoryCache.set(id, data);
     });
+    renderInventoryTable();
+    populateProductSelects();
+    updateInventarioKPI();
   });
+  unsubscribers.push(unsub);
 }
 
-// ==============================
-// INVENTARIO - Crear producto
-// ==============================
-document.getElementById("formProduct").addEventListener("submit", e => {
-  e.preventDefault();
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
+async function loadSalesOnce() {
+  try {
+    const q = query(collection(db, "companies", companyId, "sales"), orderBy("createdAt"));
+    const docs = await getDocs(q);
+    salesCache = docs.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderSalesTable();
+    updateCharts();
+  } catch (err) { console.error("loadSalesOnce", err); }
+}
 
-  const prod = {
-    id: genId("prod"),
-    name: document.getElementById("prodName").value,
-    sku: document.getElementById("prodSku").value,
-    gender: document.getElementById("prodGender").value,
-    size: document.getElementById("prodSize").value,
-    color: document.getElementById("prodColor").value,
-    team: document.getElementById("prodTeam").value,
-    cost: parseMoney(document.getElementById("prodCost").value),
-    price: parseMoney(document.getElementById("prodPrice").value),
-    stock: parseInt(document.getElementById("prodInitialStock").value) || 0,
-    notes: document.getElementById("prodNotes").value
-  };
-
-  comp.products.push(prod);
-  saveDB(db);
-
-  document.getElementById("formProduct").reset();
-  renderInventory();
-  refreshKPIs();
-});
-
-// ==============================
-// SIGUE EN PARTE 2…
-// ==============================
-
-// ==============================
-// app.js - Parte 2 (líneas 401–800)
-// ==============================
-
-// ==============================
-// VENTAS - Render
-// ==============================
-function renderSales() {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-  const tbody = document.getElementById("tbSales");
-  tbody.innerHTML = "";
-  comp.sales.forEach(sale => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${new Date(sale.date).toLocaleString()}</td>
-      <td>${sale.items.map(i => i.name + " x" + i.qty).join(", ")}</td>
-      <td>${formatMoney(sale.total)}</td>
-      <td>${sale.clientName || ""}</td>
-      <td>
-        <button data-id="${sale.id}" class="btnDelSale text-red-600">Eliminar</button>
-        <button data-id="${sale.id}" class="btnInvoice text-blue-600">Factura PDF</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
+function subscribeSales() {
+  const salesCol = collection(db, "companies", companyId, "sales");
+  const q = query(salesCol, orderBy("createdAt","desc"));
+  const unsub = onSnapshot(q, snap => {
+    salesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderSalesTable();
+    updateCharts();
   });
+  unsubscribers.push(unsub);
+}
 
-  tbody.querySelectorAll(".btnDelSale").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      comp.sales = comp.sales.filter(s => s.id !== id);
-      saveDB(db);
-      renderSales();
-      refreshKPIs();
-    });
+function subscribeBalances() {
+  const ref = doc(db, "companies", companyId, "state", "balances");
+  const unsub = onSnapshot(ref, snap => {
+    const d = snap.exists() ? snap.data() : {};
+    $("#kpiCajaEmpresa").textContent = money(d.cajaEmpresa || 0);
+    $("#kpiDeudas").textContent = money(d.deudasTotales || 0);
   });
+  unsubscribers.push(unsub);
+}
 
-  tbody.querySelectorAll(".btnInvoice").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      const sale = comp.sales.find(s => s.id === id);
-      generateInvoicePDF(sale);
-    });
+function updateInventarioKPI() {
+  let total = 0;
+  for (const p of inventoryCache.values()) total += Number(p.stock || 0);
+  $("#kpiInventarioTotal").textContent = total;
+}
+
+/* ======================
+   INVENTORY CRUD
+   ====================== */
+function setupInventoryHandlers() {
+  $("#btnCreateProduct")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    await handleCreateProduct();
   });
 }
 
-// ==============================
-// VENTAS - Crear venta
-// ==============================
-document.getElementById("formSale").addEventListener("submit", e => {
-  e.preventDefault();
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
+async function handleCreateProduct() {
+  const name = $("#prodName").value.trim();
+  if (!name) return alert("Nombre requerido");
+  const sku = $("#prodSku").value.trim() || null;
+  const gender = $("#prodGender").value.trim() || null;
+  const size = $("#prodSize").value.trim() || null;
+  const color = $("#prodColor").value.trim() || null;
+  const team = $("#prodTeam").value.trim() || null;
+  const cost = Number($("#prodCost").value || 0);
+  const price = Number($("#prodPrice").value || 0);
+  const initialStock = Number($("#prodInitialStock").value || 0);
+  const notes = $("#prodNotes").value.trim() || null;
 
-  const productId = document.getElementById("saleProduct").value;
-  const qty = parseInt(document.getElementById("saleQty").value);
-  const clientName = document.getElementById("saleClientName").value.trim();
-  const clientPhone = document.getElementById("saleClientPhone").value.trim();
+  try {
+    const newRef = doc(collection(db, "companies", companyId, "inventory"));
+    await setDoc(newRef, {
+      name, sku, attributes: { gender, size, color, team },
+      cost, price, stock: initialStock, notes, createdAt: serverTimestamp()
+    });
 
-  const prod = comp.products.find(p => p.id === productId);
-  if (!prod || prod.stock < qty) {
-    alert("Stock insuficiente");
+    await runTransaction(db, async (tx) => {
+      const batchRef = doc(collection(db, "companies", companyId, "inventory", newRef.id, "batches"));
+      tx.set(batchRef, { quantity_added: initialStock, remaining: initialStock, received_at: serverTimestamp(), note: "Stock inicial" });
+      const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
+      tx.set(movRef, { productId: newRef.id, qty: initialStock, type: "in", note: "Stock inicial", refId: newRef.id, createdAt: serverTimestamp() });
+    });
+
+    // limpiar
+    ["#prodName","#prodSku","#prodGender","#prodSize","#prodColor","#prodTeam","#prodCost","#prodPrice","#prodInitialStock","#prodNotes"].forEach(s => { try { $(s).value=""; } catch(e){} });
+    alert("Producto creado correctamente");
+  } catch (err) {
+    console.error("handleCreateProduct error", err);
+    alert("Error creando producto: " + err.message);
+  }
+}
+
+function renderInventoryTable() {
+  const tb = $("#tbInventory");
+  if (!tb) return;
+  tb.innerHTML = "";
+  const arr = Array.from(inventoryCache.values());
+  if (!arr.length) {
+    tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay productos aún.</td></tr>`;
     return;
   }
-
-  const total = prod.price * qty;
-
-  const sale = {
-    id: genId("sale"),
-    date: Date.now(),
-    items: [{ id: prod.id, name: prod.name, qty, price: prod.price }],
-    total,
-    clientName,
-    clientPhone
-  };
-
-  comp.sales.push(sale);
-  prod.stock -= qty;
-
-  // Registrar movimiento
-  comp.movimientos.push({
-    id: genId("mov"),
-    type: "venta",
-    date: Date.now(),
-    descripcion: `Venta de ${qty}x ${prod.name}`,
-    monto: total
-  });
-
-  saveDB(db);
-  renderSales();
-  renderInventory();
-  refreshKPIs();
-  document.getElementById("formSale").reset();
-});
-
-// ==============================
-// FACTURA PDF
-// ==============================
-function generateInvoicePDF(sale) {
-  if (!sale) return;
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  doc.setFontSize(16);
-  doc.text("Factura de Venta", 14, 20);
-
-  doc.setFontSize(10);
-  doc.text("Fecha: " + new Date(sale.date).toLocaleString(), 14, 30);
-  if (sale.clientName) doc.text("Cliente: " + sale.clientName, 14, 36);
-  if (sale.clientPhone) doc.text("Tel: " + sale.clientPhone, 14, 42);
-
-  const rows = sale.items.map(i => [i.name, i.qty, formatMoney(i.price), formatMoney(i.price * i.qty)]);
-  doc.autoTable({
-    head: [["Producto", "Cantidad", "Precio", "Total"]],
-    body: rows,
-    startY: 50
-  });
-
-  doc.text("TOTAL: " + formatMoney(sale.total), 14, doc.lastAutoTable.finalY + 10);
-
-  doc.save("factura_" + sale.id + ".pdf");
-}
-
-// ==============================
-// GASTOS (EGRESOS)
-// ==============================
-function renderGastos() {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-  const tbody = document.getElementById("tbGastos");
-  tbody.innerHTML = "";
-  comp.gastos.forEach(g => {
+  arr.forEach(p => {
+    const attrs = [];
+    if (p.attributes?.gender) attrs.push(p.attributes.gender);
+    if (p.attributes?.size) attrs.push(p.attributes.size);
+    if (p.attributes?.color) attrs.push(p.attributes.color);
+    if (p.attributes?.team) attrs.push(p.attributes.team);
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${new Date(g.date).toLocaleString()}</td>
-      <td>${g.descripcion}</td>
-      <td>${formatMoney(g.monto)}</td>
-      <td><button data-id="${g.id}" class="btnDelGasto text-red-600">Eliminar</button></td>
+      <td><strong>${escapeHtml(p.name)}</strong><div class="text-xs text-slate-500">${p.sku || ''}</div></td>
+      <td class="small">${attrs.join(' • ')}</td>
+      <td>${money(p.price)}</td>
+      <td>${Number(p.stock || 0)}</td>
+      <td>
+        <button data-id="${p.id}" class="btnAddStock px-2 py-1 border rounded text-sm">+ Stock</button>
+        <button data-id="${p.id}" class="btnEditProduct px-2 py-1 border rounded text-sm">Editar</button>
+        <button data-id="${p.id}" class="btnDeleteProduct px-2 py-1 border rounded text-sm">Borrar</button>
+      </td>
     `;
-    tbody.appendChild(tr);
+    tb.appendChild(tr);
   });
 
-  tbody.querySelectorAll(".btnDelGasto").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      comp.gastos = comp.gastos.filter(x => x.id !== id);
-      saveDB(db);
-      renderGastos();
-      refreshKPIs();
-    });
-  });
+  $$(".btnAddStock").forEach(b => b.onclick = (ev) => promptAddStock(ev.currentTarget.dataset.id));
+  $$(".btnDeleteProduct").forEach(b => b.onclick = (ev) => { if (confirm("Borrar producto?")) deleteProduct(ev.currentTarget.dataset.id); });
+  $$(".btnEditProduct").forEach(b => b.onclick = (ev) => editProductModal(ev.currentTarget.dataset.id));
 }
 
-document.getElementById("formGasto").addEventListener("submit", e => {
-  e.preventDefault();
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
+async function promptAddStock(productId) {
+  const qtyStr = prompt("¿Cuántas unidades quieres añadir al stock?");
+  if (!qtyStr) return;
+  const qty = Number(qtyStr);
+  if (!qty || qty <= 0) return alert("Cantidad inválida");
+  const note = prompt("Nota (opcional)", "Producción semanal");
 
-  const g = {
-    id: genId("gasto"),
-    date: Date.now(),
-    descripcion: document.getElementById("gastoDesc").value,
-    monto: parseMoney(document.getElementById("gastoMonto").value)
-  };
-  comp.gastos.push(g);
+  try {
+    await runTransaction(db, async (tx) => {
+      const prodRef = doc(db, "companies", companyId, "inventory", productId);
+      const prodSnap = await tx.get(prodRef);
+      if (!prodSnap.exists()) throw new Error("Producto no existe");
+      const newStock = Number(prodSnap.data().stock || 0) + qty;
+      tx.update(prodRef, { stock: newStock });
 
-  comp.movimientos.push({
-    id: genId("mov"),
-    type: "gasto",
-    date: Date.now(),
-    descripcion: g.descripcion,
-    monto: -g.monto
+      const batchRef = doc(collection(db, "companies", companyId, "inventory", productId, "batches"));
+      tx.set(batchRef, { quantity_added: qty, remaining: qty, received_at: serverTimestamp(), note: note || null });
+
+      const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
+      tx.set(movRef, { productId, qty, type: "in", note: note || null, refId: batchRef.id, createdAt: serverTimestamp() });
+    });
+    alert("Stock actualizado");
+  } catch (err) {
+    console.error("promptAddStock error", err);
+    alert("Error en agregar stock: " + err.message);
+  }
+}
+
+async function deleteProduct(productId) {
+  try {
+    await deleteDoc(doc(db, "companies", companyId, "inventory", productId));
+    alert("Producto eliminado");
+  } catch (err) {
+    console.error(err);
+    alert("Error al eliminar");
+  }
+}
+
+function editProductModal(productId) {
+  const p = inventoryCache.get(productId);
+  if (!p) return alert("No encontrado");
+  const newPrice = prompt("Nuevo precio", p.price || 0);
+  if (newPrice === null) return;
+  const newCost = prompt("Nuevo costo", p.cost || 0);
+  if (newCost === null) return;
+  updateDoc(doc(db, "companies", companyId, "inventory", productId), { price: Number(newPrice), cost: Number(newCost) })
+    .then(() => alert("Producto actualizado")).catch(err => { console.error(err); alert("Error actualizando"); });
+}
+
+
+
+/* ======================
+   POS / VENTAS
+   ====================== */
+function setupPosHandlers() {
+  $("#btnAddCartLine").onclick = () => createCartLine();
+  $("#btnClearCart").onclick = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
+  $("#btnSubmitSale").onclick = submitSaleHandler;
+  createCartLine(); // línea por defecto
+}
+
+function createCartLine() {
+  const tr = document.createElement("tr");
+  const selectHtml = `
+    <div>
+      <input type="text" class="prodSearch w-full border rounded p-1 mb-1" placeholder="Buscar producto (nombre, color, talla, sku...)">
+      <select class="prodSelect w-full border rounded p-1">
+        <option value="">-- seleccionar --</option>
+      </select>
+    </div>
+  `;
+  tr.innerHTML = `
+    <td>${selectHtml}</td>
+    <td><input type="number" class="lineQty border rounded p-1 w-24" min="1" value="1"></td>
+    <td><input type="number" class="linePrice border rounded p-1 w-32" min="0" step="0.01"></td>
+    <td class="lineSubtotal">${money(0)}</td>
+    <td><button class="btnRemoveLine px-2 py-1 border rounded">Eliminar</button></td>
+  `;
+  $("#cartBody").appendChild(tr);
+
+  const selectEl = tr.querySelector(".prodSelect");
+  const searchInput = tr.querySelector(".prodSearch");
+  populateProductSelectElement(selectEl);
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim().toLowerCase();
+    Array.from(selectEl.options).forEach(opt => {
+      if (!opt.value) { opt.hidden = false; return; }
+      opt.hidden = q ? !opt.text.toLowerCase().includes(q) : false;
+    });
+  });
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const first = Array.from(selectEl.options).find(o => !o.hidden && o.value);
+      if (first) {
+        selectEl.value = first.value;
+        selectEl.dispatchEvent(new Event('change'));
+      }
+    }
   });
 
-  saveDB(db);
-  renderGastos();
-  refreshKPIs();
-  document.getElementById("formGasto").reset();
-});
+  selectEl.onchange = (e) => {
+    const pid = e.target.value;
+    if (!pid) {
+      tr.querySelector(".linePrice").value = 0;
+      tr.querySelector(".lineQty").value = 1;
+      updateLineSubtotal(tr);
+      return;
+    }
+    const p = inventoryCache.get(pid);
+    tr.dataset.productId = pid;
+    tr.querySelector(".linePrice").value = p.price || 0;
+    tr.querySelector(".lineQty").value = 1;
+    updateLineSubtotal(tr);
+  };
 
-// ==============================
-// INGRESOS
-// ==============================
-function renderIngresos() {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-  const tbody = document.getElementById("tbIngresos");
+  tr.querySelector(".lineQty").oninput = () => updateLineSubtotal(tr);
+  tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
+  tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
+}
+
+function populateProductSelectElement(selectEl) {
+  const current = selectEl.value || "";
+  selectEl.innerHTML = `<option value="">-- seleccionar --</option>`;
+  Array.from(inventoryCache.values()).forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    const attrs = [];
+    if (p.attributes?.gender) attrs.push(p.attributes.gender);
+    if (p.attributes?.size) attrs.push(p.attributes.size);
+    if (p.attributes?.color) attrs.push(p.attributes.color);
+    if (p.attributes?.team) attrs.push(p.attributes.team);
+    const skuPart = p.sku ? ` SKU:${p.sku}` : '';
+    opt.text = `${p.name} ${attrs.length ? "(" + attrs.join(" • ") + ")" : ""}${skuPart} — Stock: ${p.stock || 0}`;
+    selectEl.appendChild(opt);
+  });
+  if (current) selectEl.value = current;
+}
+
+function populateProductSelects() { $$(".prodSelect").forEach(sel => populateProductSelectElement(sel)); }
+
+function updateLineSubtotal(tr) {
+  const q = Number(tr.querySelector(".lineQty").value || 0);
+  const p = Number(tr.querySelector(".linePrice").value || 0);
+  const sub = q * p;
+  tr.querySelector(".lineSubtotal").textContent = money(sub);
+  updateCartTotal();
+}
+
+function updateCartTotal() {
+  const rows = Array.from($("#cartBody").querySelectorAll("tr"));
+  let total = 0;
+  rows.forEach(r => {
+    const subStr = r.querySelector(".lineSubtotal").textContent || "$0";
+    const sub = Number(subStr.replace(/\$/g,'').replace(/\./g,'').replace(/\,/g,'.')) || 0;
+    total += sub;
+  });
+  $("#cartTotal").textContent = money(total);
+}
+
+function setupPosSearch() {
+  const input = $("#posSearchInput");
+  const resultsDiv = $("#posSearchResults");
+  if (!input) return;
+
+  document.addEventListener("click", (ev) => {
+    if (!resultsDiv.contains(ev.target) && !input.contains(ev.target)) resultsDiv.classList.add("hidden");
+  });
+
+  input.oninput = () => {
+    const q = normalizeForSearch(input.value.trim());
+    resultsDiv.innerHTML = "";
+    if (!q) { resultsDiv.classList.add("hidden"); return; }
+
+    const matches = Array.from(inventoryCache.values()).filter(p => {
+      const haystack = [
+        p.name, p.sku, p.attributes?.gender, p.attributes?.size, p.attributes?.color, p.attributes?.team
+      ].filter(Boolean).map(normalizeForSearch).join(" ");
+      return haystack.includes(q);
+    });
+
+    if (!matches.length) {
+      resultsDiv.innerHTML = `<div class="p-2 text-slate-500">Sin resultados</div>`;
+      resultsDiv.classList.remove("hidden");
+      return;
+    }
+
+    matches.forEach(p => {
+      const div = document.createElement("div");
+      div.className = "p-2 hover:bg-slate-100 cursor-pointer text-sm";
+      div.dataset.pid = p.id;
+      const attrs = [];
+      if (p.attributes?.gender) attrs.push(p.attributes.gender);
+      if (p.attributes?.size) attrs.push(p.attributes.size);
+      if (p.attributes?.color) attrs.push(p.attributes.color);
+      if (p.attributes?.team) attrs.push(p.attributes.team);
+      div.textContent = `${p.name}${attrs.length ? " (" + attrs.join(" • ") + ")" : ""} — Stock: ${p.stock || 0}`;
+      div.onclick = () => { addProductToCart(p.id); resultsDiv.classList.add("hidden"); input.value = ""; };
+      resultsDiv.appendChild(div);
+    });
+
+    resultsDiv.classList.remove("hidden");
+  };
+
+  input.onkeydown = (ev) => {
+    if (ev.key === "Enter") {
+      const candidate = resultsDiv.querySelector("div[data-pid]");
+      if (candidate) {
+        addProductToCart(candidate.dataset.pid);
+        resultsDiv.classList.add("hidden");
+        input.value = "";
+        ev.preventDefault();
+      }
+    }
+  };
+}
+
+function addProductToCart(productId) {
+  const prod = inventoryCache.get(productId);
+  if (!prod) return alert("Producto no encontrado");
+
+  const tr = document.createElement("tr");
+  tr.dataset.productId = productId;
+  tr.innerHTML = `
+    <td>${escapeHtml(prod.name)}</td>
+    <td><input type="number" class="lineQty border rounded p-1 w-24" min="1" value="1"></td>
+    <td><input type="number" class="linePrice border rounded p-1 w-32" min="0" step="0.01" value="${Number(prod.price || 0)}"></td>
+    <td class="lineSubtotal">${money(Number(prod.price || 0))}</td>
+    <td><button class="btnRemoveLine px-2 py-1 border rounded">Eliminar</button></td>
+  `;
+  $("#cartBody").appendChild(tr);
+
+  tr.querySelector(".lineQty").oninput = () => updateLineSubtotal(tr);
+  tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
+  tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
+
+  updateLineSubtotal(tr);
+}
+
+async function submitSaleHandler() {
+  const rows = Array.from($("#cartBody").querySelectorAll("tr"));
+  if (!rows.length) return alert("El carrito está vacío");
+
+  const items = [];
+  for (const r of rows) {
+    const pid = r.dataset.productId;
+    if (!pid) return alert("Selecciona producto en todas las líneas");
+    const qty = Number(r.querySelector(".lineQty").value || 0);
+    const price = Number(r.querySelector(".linePrice").value || 0);
+    if (qty <= 0) return alert("Cantidad inválida");
+    const prod = inventoryCache.get(pid);
+    if (!prod) return alert("Producto no encontrado (recarga)");
+    items.push({ productId: pid, name: prod.name, qty, price });
+  }
+  const total = items.reduce((s, it) => s + (it.qty * it.price), 0);
+  const saleDoc = {
+    createdAt: serverTimestamp(),
+    createdBy: currentUser.uid,
+    client: $("#saleClient").value.trim() || null,
+    type: $("#saleType").value,
+    channel: $("#saleChannel").value,
+    total, items
+  };
+
+  try {
+    await runTransaction(db, async (tx) => {
+      // Productos
+      const prodSnaps = {};
+      for (const it of items) {
+        const prodRef = doc(db, "companies", companyId, "inventory", it.productId);
+        const snap = await tx.get(prodRef);
+        if (!snap.exists()) throw new Error(`Producto ${it.name} no existe`);
+        prodSnaps[it.productId] = { ref: prodRef, data: snap.data() };
+      }
+
+      // Balances
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const balancesSnap = await tx.get(balancesRef);
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+
+      // validar stock
+      for (const it of items) {
+        const currentStock = Number(prodSnaps[it.productId].data.stock || 0);
+        if (currentStock < it.qty) throw new Error(`Stock insuficiente para ${it.name}. Disponible: ${currentStock}`);
+      }
+
+      // actualizar stock
+      for (const it of items) {
+        const prodRef = prodSnaps[it.productId].ref;
+        const currentStock = Number(prodSnaps[it.productId].data.stock || 0);
+        tx.update(prodRef, { stock: currentStock - it.qty });
+      }
+
+      // crear venta
+      const saleRef = doc(collection(db, "companies", companyId, "sales"));
+      tx.set(saleRef, saleDoc);
+
+      // movimientos de stock
+      for (const it of items) {
+        const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
+        tx.set(movRef, { productId: it.productId, qty: -it.qty, type: "out", note: `Venta (${it.qty} x ${it.name})`, refId: saleRef.id, createdAt: serverTimestamp() });
+      }
+
+      // movimiento caja
+      const movCajaRef = doc(collection(db, "companies", companyId, "movements"));
+      tx.set(movCajaRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: total, desc: `Venta total ID ${saleRef.id}`, saleId: saleRef.id, createdAt: serverTimestamp() });
+
+      // actualizar balances
+      const newCaja = oldCaja + Number(total || 0);
+      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
+      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+    });
+
+    alert("Venta registrada correctamente");
+    $("#cartBody").innerHTML = "";
+    updateCartTotal();
+  } catch (err) {
+    console.error("submitSaleHandler error:", err);
+    alert("Error al crear venta: " + (err.message || err));
+  }
+}
+
+/* ======================
+   ELIMINAR VENTA
+   ====================== */
+async function deleteSale(ventaId) {
+  try {
+    await runTransaction(db, async (tx) => {
+      const ventaRef = doc(db, "companies", companyId, "sales", ventaId);
+      const ventaSnap = await tx.get(ventaRef);
+      if (!ventaSnap.exists()) throw new Error("Venta no encontrada");
+      const venta = ventaSnap.data();
+
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const balancesSnap = await tx.get(balancesRef);
+      const balances = balancesSnap.exists() ? balancesSnap.data() : { cajaEmpresa: 0 };
+
+      const productos = [];
+      if (Array.isArray(venta.items)) {
+        for (const item of venta.items) {
+          const prodRef = doc(db, "companies", companyId, "inventory", item.productId);
+          const prodSnap = await tx.get(prodRef);
+          if (prodSnap.exists()) productos.push({ ref: prodRef, data: prodSnap.data(), item });
+        }
+      }
+
+      // reponer stock
+      for (const { ref, data, item } of productos) {
+        const newStock = (Number(data.stock || 0) + Number(item.qty || 0));
+        tx.update(ref, { stock: newStock });
+      }
+
+      const totalVenta = Number(venta.total || 0);
+      const movRef = doc(collection(db, "companies", companyId, "movements"));
+      tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: totalVenta, desc: `Eliminación venta ID ${ventaId}`, saleId: ventaId, createdAt: serverTimestamp() });
+
+      const newCaja = (Number(balances.cajaEmpresa || 0) - totalVenta);
+      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
+      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+
+      tx.delete(ventaRef);
+    });
+
+    alert("Venta eliminada correctamente y caja/stock ajustados.");
+  } catch (err) {
+    console.error("Error al eliminar venta:", err);
+    alert("Error al eliminar venta: " + (err.message || err));
+  }
+}
+
+/* ======================
+   RENDER ventas (tabla)
+   ====================== */
+function renderSalesTable() {
+  const tbody = $("#tbVentas");
   if (!tbody) return;
   tbody.innerHTML = "";
-  (comp.ingresos || []).forEach(g => {
+
+  salesCache.forEach(sale => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${new Date(g.date).toLocaleString()}</td>
-      <td>${g.descripcion}</td>
-      <td>${formatMoney(g.monto)}</td>
-      <td><button data-id="${g.id}" class="btnDelIngreso text-red-600">Eliminar</button></td>
+      <td class="border px-2 py-1">${new Date(sale.createdAt?.toDate?.() || Date.now()).toLocaleString()}</td>
+      <td class="border px-2 py-1">${sale.client || '-'}</td>
+      <td class="border px-2 py-1">${money(sale.total)}</td>
+      <td class="border px-2 py-1">${(sale.items || []).map(i => `${i.qty} x ${i.name}`).join("<br>")}</td>
+      <td class="border px-2 py-1">
+        <button class="bg-red-500 text-white px-2 py-1 rounded text-xs delete-sale" data-id="${sale.id}">Eliminar</button>
+      </td>
     `;
     tbody.appendChild(tr);
   });
 
-  tbody.querySelectorAll(".btnDelIngreso").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      comp.ingresos = comp.ingresos.filter(x => x.id !== id);
-      saveDB(db);
-      renderIngresos();
-      refreshKPIs();
-    });
+  $$(".delete-sale").forEach(btn => {
+    btn.onclick = async () => {
+      const saleId = btn.dataset.id;
+      if (confirm("¿Seguro que deseas eliminar esta venta?")) await deleteSale(saleId);
+    };
   });
 }
 
-document.getElementById("formIngreso")?.addEventListener("submit", e => {
-  e.preventDefault();
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
+/* ======================
+   CHARTS
+   ====================== */
+let chartTopProducts = null;
+let chartVentasPorDia = null;
 
-  if (!comp.ingresos) comp.ingresos = [];
+function setupCharts() {
+  try {
+    const ctx1 = document.getElementById("chartTopProducts").getContext("2d");
+    chartTopProducts = new Chart(ctx1, { type: 'bar', data: { labels: [], datasets: [{ label: 'Vendidos', data: [], backgroundColor: 'rgba(16,185,129,0.8)' }] }, options: {} });
 
-  const g = {
-    id: genId("ing"),
-    date: Date.now(),
-    descripcion: document.getElementById("ingDesc").value,
-    monto: parseMoney(document.getElementById("ingMonto").value)
-  };
-  comp.ingresos.push(g);
-
-  comp.movimientos.push({
-    id: genId("mov"),
-    type: "ingreso",
-    date: Date.now(),
-    descripcion: g.descripcion,
-    monto: g.monto
-  });
-
-  saveDB(db);
-  renderIngresos();
-  refreshKPIs();
-  document.getElementById("formIngreso").reset();
-});
-
-// ==============================
-// MOVIMIENTOS
-// ==============================
-function renderMovimientos() {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-  const tbody = document.getElementById("tbMovs");
-  tbody.innerHTML = "";
-  comp.movimientos.forEach(m => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${new Date(m.date).toLocaleString()}</td>
-      <td>${m.type}</td>
-      <td>${m.descripcion}</td>
-      <td>${formatMoney(m.monto)}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-// Descargar reporte de movimientos en PDF
-document.getElementById("btnMovsPDF")?.addEventListener("click", () => {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  doc.setFontSize(16);
-  doc.text("Reporte de Movimientos", 14, 20);
-
-  const rows = comp.movimientos.map(m => [
-    new Date(m.date).toLocaleString(),
-    m.type,
-    m.descripcion,
-    formatMoney(m.monto)
-  ]);
-
-  doc.autoTable({
-    head: [["Fecha", "Tipo", "Descripción", "Monto"]],
-    body: rows,
-    startY: 30
-  });
-
-  doc.save("movimientos.pdf");
-});
-
-// ==============================
-// SIGUE EN PARTE 3…
-// ==============================
-
-// ==============================
-// app.js - Parte 3 (líneas 801–fin)
-// ==============================
-
-// ==============================
-// USUARIOS (solo admin)
-// ==============================
-function renderUsers() {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-  const tbody = document.getElementById("tbEmployees");
-  tbody.innerHTML = "";
-  comp.users.forEach(u => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${u.name}</td>
-      <td>${u.email}</td>
-      <td>${u.role}</td>
-      <td>${new Date(u.created).toLocaleDateString()}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-document.getElementById("formCreateEmployee")?.addEventListener("submit", e => {
-  e.preventDefault();
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-
-  const emp = {
-    id: genId("user"),
-    name: document.getElementById("empName").value,
-    email: document.getElementById("empEmail").value,
-    role: document.getElementById("empRole").value,
-    created: Date.now()
-  };
-
-  comp.users.push(emp);
-  saveDB(db);
-  renderUsers();
-  e.target.reset();
-});
-
-// ==============================
-// ESTADÍSTICAS
-// ==============================
-function renderEstadisticas() {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-
-  // Ventas por día últimos 30 días
-  const ventasPorDia = {};
-  comp.sales.forEach(s => {
-    const d = new Date(s.date).toISOString().split("T")[0];
-    ventasPorDia[d] = (ventasPorDia[d] || 0) + s.total;
-  });
-
-  const ctx = document.getElementById("chartVentasPorDia").getContext("2d");
-  new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: Object.keys(ventasPorDia),
-      datasets: [{
-        label: "Ventas",
-        data: Object.values(ventasPorDia),
-        borderColor: "blue",
-        fill: false
-      }]
-    }
-  });
-
-  // Top productos últimos 90 días
-  const top = {};
-  const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
-  comp.sales.filter(s => s.date >= cutoff).forEach(s => {
-    s.items.forEach(i => {
-      top[i.name] = (top[i.name] || 0) + i.qty;
-    });
-  });
-
-  const ctx2 = document.getElementById("chartTopProducts").getContext("2d");
-  new Chart(ctx2, {
-    type: "bar",
-    data: {
-      labels: Object.keys(top),
-      datasets: [{
-        label: "Cantidad vendida",
-        data: Object.values(top),
-        backgroundColor: "orange"
-      }]
-    }
-  });
-}
-
-// ==============================
-// ESTADÍSTICAS - PDF
-// ==============================
-document.getElementById("btnStatsPDF")?.addEventListener("click", () => {
-  const db = getDB();
-  const comp = db.companies.find(c => c.id === currentUser.companyId);
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  doc.setFontSize(16);
-  doc.text("Reporte de Estadísticas", 14, 20);
-
-  const totalVentas = comp.sales.reduce((sum, s) => sum + s.total, 0);
-  const totalGastos = comp.gastos.reduce((sum, g) => sum + g.monto, 0);
-  const totalIngresos = (comp.ingresos || []).reduce((sum, g) => sum + g.monto, 0);
-
-  doc.setFontSize(12);
-  doc.text("Resumen general:", 14, 30);
-  doc.text("Ventas totales: " + formatMoney(totalVentas), 14, 38);
-  doc.text("Egresos totales: " + formatMoney(totalGastos), 14, 46);
-  doc.text("Ingresos totales: " + formatMoney(totalIngresos), 14, 54);
-
-  // Tabla de ventas por día
-  const ventasPorDia = {};
-  comp.sales.forEach(s => {
-    const d = new Date(s.date).toISOString().split("T")[0];
-    ventasPorDia[d] = (ventasPorDia[d] || 0) + s.total;
-  });
-  const rows = Object.entries(ventasPorDia).map(([fecha, monto]) => [fecha, formatMoney(monto)]);
-
-  doc.autoTable({
-    head: [["Fecha", "Total ventas"]],
-    body: rows,
-    startY: 70
-  });
-
-  doc.save("estadisticas.pdf");
-});
-
-// ==============================
-// INICIALIZAR
-// ==============================
-document.addEventListener("DOMContentLoaded", () => {
-  // Tab switching
-  document.querySelectorAll(".tab-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach(tab => tab.classList.add("hidden"));
-      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("bg-slate-900", "text-white"));
-      document.getElementById("tab-" + btn.dataset.tab).classList.remove("hidden");
-      btn.classList.add("bg-slate-900", "text-white");
-
-      // Render dinámico
-      if (btn.dataset.tab === "ventas") renderSales();
-      if (btn.dataset.tab === "inventario") renderInventory();
-      if (btn.dataset.tab === "gastos") renderGastos();
-      if (btn.dataset.tab === "ingresos") renderIngresos();
-      if (btn.dataset.tab === "movimientos") renderMovimientos();
-      if (btn.dataset.tab === "usuarios") renderUsers();
-      if (btn.dataset.tab === "estadisticas") renderEstadisticas();
-    });
-  });
-
-  // Si ya hay sesión activa
-  if (currentUser) {
-    document.getElementById("authView").classList.add("hidden");
-    document.getElementById("mainView").classList.remove("hidden");
-    refreshKPIs();
+    const ctx2 = document.getElementById("chartVentasPorDia").getContext("2d");
+    chartVentasPorDia = new Chart(ctx2, { type: 'line', data: { labels: [], datasets: [{ label: 'Ventas', data: [], borderColor: 'rgba(15,118,110,1)', backgroundColor: 'rgba(15,118,110,0.2)' }] }, options: {} });
+  } catch (err) {
+    console.warn("Charts not available");
   }
+}
+
+function updateCharts() {
+  if (!chartTopProducts || !chartVentasPorDia) return;
+
+  const counter = {};
+  salesCache.forEach(s => (s.items || []).forEach(it => counter[it.productId] = (counter[it.productId] || 0) + it.qty));
+  const top = Object.entries(counter).sort((a,b) => b[1]-a[1]).slice(0,8);
+  const labels = top.map(([pid]) => {
+    const p = inventoryCache.get(pid);
+    return p ? `${p.name} ${p.attributes?.size||''} ${p.attributes?.color||''}` : pid;
+  });
+  const data = top.map(([_,qty]) => qty);
+  chartTopProducts.data.labels = labels;
+  chartTopProducts.data.datasets[0].data = data;
+  chartTopProducts.update();
+
+  const mapDays = {};
+  const now = new Date();
+  for (let i=29;i>=0;i--) { const d = new Date(now); d.setDate(now.getDate()-i); mapDays[d.toISOString().slice(0,10)] = 0; }
+  salesCache.forEach(s => {
+    const key = s.createdAt?.seconds ? new Date(s.createdAt.seconds*1000).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+    if (mapDays[key] !== undefined) mapDays[key] += Number(s.total || 0);
+  });
+  chartVentasPorDia.data.labels = Object.keys(mapDays);
+  chartVentasPorDia.data.datasets[0].data = Object.values(mapDays);
+  chartVentasPorDia.update();
+}
+
+
+
+
+/* ======================
+   CAJA por rango / Movimientos
+   ====================== */
+async function computeCajaTotal(fromDate, toDate) {
+  try {
+    const movCol = collection(db, "companies", companyId, "movements");
+    const q = query(movCol, where("cuenta","==","cajaEmpresa"), orderBy("createdAt","desc"));
+    const snap = await getDocs(q);
+    let total = 0;
+    snap.forEach(d => {
+      const md = d.data();
+      const m = Number(md.monto || 0);
+      const createdAt = md.createdAt?.toDate ? md.createdAt.toDate() : (md.createdAt ? new Date(md.createdAt) : null);
+      if (!createdAt) return;
+      if (createdAt >= fromDate && createdAt <= toDate) total += (md.tipo === "egreso") ? -m : m;
+    });
+    return total;
+  } catch (err) {
+    console.error("computeCajaTotal error:", err);
+    throw err;
+  }
+}
+
+function formatDateForLabel(d) { return d.toISOString().slice(0,10); }
+
+function setupCajaControls() {
+  $("#btnCajaCustomToggle")?.addEventListener("click", () => $("#cajaCustom").classList.toggle("hidden"));
+
+  $("#btnCajaHoy")?.addEventListener("click", async () => {
+    const today = new Date(); const from = new Date(today); from.setHours(0,0,0,0); const to = new Date(today); to.setHours(23,59,59,999);
+    try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja hoy (${formatDateForLabel(from)}): ${money(total)}`; } catch (err) { alert("Error calculando caja hoy: " + err.message); }
+  });
+
+  $("#btnCaja7d")?.addEventListener("click", async () => {
+    const today = new Date(); const from = new Date(today); from.setDate(today.getDate()-6); from.setHours(0,0,0,0); const to = new Date(today); to.setHours(23,59,59,999);
+    try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja últimos 7 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`; } catch (err) { alert("Error calculando 7 días: " + err.message); }
+  });
+
+  $("#btnCaja30d")?.addEventListener("click", async () => {
+    const today = new Date(); const from = new Date(today); from.setDate(today.getDate()-29); from.setHours(0,0,0,0); const to = new Date(today); to.setHours(23,59,59,999);
+    try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja últimos 30 días (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`; } catch (err) { alert("Error calculando 30 días: " + err.message); }
+  });
+
+  $("#btnCajaCustom")?.addEventListener("click", async () => {
+    const fromStr = $("#cajaFrom").value; const toStr = $("#cajaTo").value; if (!fromStr||!toStr) return alert("Selecciona fechas");
+    const from = new Date(fromStr); from.setHours(0,0,0,0); const to = new Date(toStr); to.setHours(23,59,59,999); if (to<from) return alert("Rango inválido");
+    try { const total = await computeCajaTotal(from,to); $("#kpiCajaRangeResult").textContent = `Caja (${formatDateForLabel(from)} → ${formatDateForLabel(to)}): ${money(total)}`; } catch (err) { alert("Error calculando rango: " + err.message); }
+  });
+}
+
+/* ======================
+   GASTOS
+   ====================== */
+function setupGastosHandlers() {
+  $("#btnSaveGasto")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    await createGasto();
+  });
+}
+
+async function createGasto() {
+  const fechaStr = $("#gastoFecha").value;
+  const cat = $("#gastoCat").value.trim();
+  const monto = Number($("#gastoMonto").value || 0);
+  const desc = $("#gastoDesc").value.trim() || null;
+  const pagadoPor = $("#gastoPagadoPor").value || "empresa";
+  if (!fechaStr || !cat || !monto || monto <= 0) return alert("Completa fecha, categoría y monto válidos");
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const balancesSnap = await tx.get(balancesRef);
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+
+      const gastoRef = doc(collection(db, "companies", companyId, "gastos"));
+      tx.set(gastoRef, { fecha: fechaStr, categoria: cat, monto, descripcion: desc, pagadoPor, createdAt: serverTimestamp(), createdBy: currentUser.uid });
+
+      if (pagadoPor === "empresa") {
+        const movRef = doc(collection(db, "companies", companyId, "movements"));
+        tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: fechaStr, monto, desc: `Gasto: ${cat} ${desc?('- '+desc):''}`, gastoId: gastoRef.id, createdAt: serverTimestamp() });
+        const newCaja = oldCaja - monto;
+        if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
+        else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+      }
+    });
+
+    alert("Gasto registrado correctamente.");
+    ["#gastoFecha","#gastoCat","#gastoMonto","#gastoDesc"].forEach(s => { try { $(s).value=""; } catch(e){} });
+    $("#gastoPagadoPor").value = "empresa";
+    await loadGastosOnce();
+  } catch (err) {
+    console.error("createGasto error:", err);
+    alert("Error registrando gasto: " + err.message);
+  }
+}
+
+async function loadGastosOnce() {
+  try {
+    const q = query(collection(db, "companies", companyId, "gastos"), orderBy("createdAt","desc"));
+    const docs = await getDocs(q);
+    const arr = docs.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderGastosTable(arr);
+  } catch (err) { console.error("loadGastosOnce", err); }
+}
+
+function renderGastosTable(gastosArray) {
+  const tb = $("#tbGastos");
+  if (!tb) return;
+  tb.innerHTML = "";
+  if (!gastosArray.length) {
+    tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay gastos registrados.</td></tr>`;
+    return;
+  }
+  gastosArray.forEach(g => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${g.fecha}</td>
+      <td>${escapeHtml(g.categoria)}</td>
+      <td>${money(g.monto)}</td>
+      <td>${escapeHtml(g.descripcion || '')}</td>
+      <td><button class="bg-red-500 text-white px-2 py-1 rounded text-xs delete-gasto" data-id="${g.id}">Eliminar</button></td>
+    `;
+    tb.appendChild(tr);
+  });
+
+  $$(".delete-gasto").forEach(btn => btn.onclick = async () => {
+    const id = btn.dataset.id;
+    if (confirm("Eliminar gasto? Esto restaurará el dinero en caja si el gasto salió de la empresa.")) {
+      await deleteGasto(id);
+    }
+  })
+}
+
+async function deleteGasto(gastoId) {
+  try {
+    await runTransaction(db, async (tx) => {
+      const gastoRef = doc(db, "companies", companyId, "gastos", gastoId);
+      const gastoSnap = await tx.get(gastoRef);
+      if (!gastoSnap.exists()) throw new Error("Gasto no encontrado");
+      const gasto = gastoSnap.data();
+
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const balancesSnap = await tx.get(balancesRef);
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+
+      if (gasto.pagadoPor === "empresa") {
+        const newCaja = oldCaja + Number(gasto.monto || 0);
+        if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
+        else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+
+        const movRef = doc(collection(db, "companies", companyId, "movements"));
+        tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: gasto.monto, desc: `Reversión Gasto ID ${gastoId}`, gastoId, createdAt: serverTimestamp() });
+      }
+
+      tx.delete(gastoRef);
+    });
+
+    alert("Gasto eliminado y caja ajustada (si aplica).");
+    await loadGastosOnce();
+  } catch (err) {
+    console.error("deleteGasto error:", err);
+    alert("Error al eliminar gasto: " + err.message);
+  }
+}
+
+/* ======================
+   MOVIMIENTOS
+   ====================== */
+async function loadMovimientos(range = "7d") {
+  try {
+    const movCol = collection(db, "companies", companyId, "movements");
+    const q = query(movCol, orderBy("createdAt","desc"));
+    const snap = await getDocs(q);
+    const arr = [];
+    snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
+
+    const now = new Date();
+    let from;
+    if (range === "today") { from = new Date(now); from.setHours(0,0,0,0); }
+    else if (range === "7d") { from = new Date(now); from.setDate(now.getDate()-6); from.setHours(0,0,0,0); }
+    else if (range === "30d") { from = new Date(now); from.setDate(now.getDate()-29); from.setHours(0,0,0,0); }
+    else from = new Date(0);
+
+    const filtered = arr.filter(m => {
+      const created = m.createdAt?.toDate ? m.createdAt.toDate() : (m.createdAt ? new Date(m.createdAt) : null);
+      return created && created >= from;
+    });
+
+    renderMovimientosTable(filtered);
+  } catch (err) { console.error("loadMovimientos", err); }
+}
+
+function renderMovimientosTable(arr) {
+  const tb = $("#tbMovimientos");
+  if (!tb) return;
+  tb.innerHTML = "";
+  if (!arr.length) { tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay movimientos en este rango.</td></tr>`; return; }
+  arr.forEach(m => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${m.fecha || (m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : '')}</td>
+                    <td>${m.tipo}</td>
+                    <td>${m.cuenta}</td>
+                    <td>${money(m.monto)}</td>
+                    <td>${escapeHtml(m.desc || '')}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+/* quick mov buttons */
+document.addEventListener("click", (ev) => {
+  if (ev.target && ev.target.id === "btnMovHoy") loadMovimientos("today");
+  if (ev.target && ev.target.id === "btnMov7d") loadMovimientos("7d");
+  if (ev.target && ev.target.id === "btnMov30d") loadMovimientos("30d");
 });
+
+/* ======================
+   USUARIOS (ADMIN) -> crear empleado vía Cloud Function
+   ====================== */
+function setupUsersHandlers() {
+  // si existe el botón de crear empleado, lo dejamos para crear cuenta + contraseña
+  const btnCreate = $("#btnCreateEmployee") || $("#btnCreateInvite") || null;
+
+  if (!btnCreate) return;
+
+  // preferimos btnCreateEmployee (nuevo flujo), si no existe intentamos btnCreateInvite (compatibilidad)
+  const createBtn = $("#btnCreateEmployee");
+  if (createBtn) {
+    createBtn.onclick = async () => {
+      const name = $("#invName").value.trim() || null;
+      const email = $("#invEmail").value.trim() || null;
+      const pass = $("#invPass") ? $("#invPass").value : null;
+      const role = $("#invRole").value || "empleado";
+
+      if (!email || !pass) return alert("Email y contraseña requeridos para crear empleado.");
+
+     try {
+  // 🔗 Llamada a la Cloud Function "createEmployee"
+  const createEmployee = httpsCallable(functions, "createEmployee");
+
+  // 📤 Enviar datos al backend con las claves correctas
+  const res = await createEmployee({
+    email,
+    password: pass,  // La contraseña que escribiste en el formulario
+    name,            // ✅ ahora coincide con lo que espera el backend
+    role,
+    companyId
+  });
+
+  // 📥 Confirmación
+  alert("Empleado creado correctamente (uid: " + res.data.uid + ").");
+
+  // 🧹 Limpiar el formulario
+  $("#invName").value = "";
+  $("#invEmail").value = "";
+  if ($("#invPass")) $("#invPass").value = "";
+  $("#invRole").value = "empleado";
+
+} catch (err) {
+  // 🚨 Manejo de errores
+  console.error("createEmployee error:", err);
+  const msg = (err?.message || err?.code || "Error creando empleado");
+  alert("Error creando empleado: " + msg);
+}
+
+    };
+    return;
+  }
+
+  // fallback: existing "invite" button (no-op if you removed invites)
+  $("#btnCreateInvite")?.addEventListener("click", async () => {
+    alert("En esta versión preferimos que el administrador cree empleados (email+password) directamente. Usa la opción para crear empleado con contraseña.");
+  });
+}
+
+/* listar usuarios vinculados a la company (solo admin) */
+function subscribeUsersIfAdmin() {
+  if (userRole !== "admin") {
+    // hide users tab
+    const btn = document.querySelector("[data-tab='usuarios']");
+    if (btn) btn.style.display = "none";
+    return;
+  }
+  const btn = document.querySelector("[data-tab='usuarios']");
+  if (btn) btn.style.display = "";
+
+  const q = query(collection(db, "users"), where("companyId","==",companyId), orderBy("createdAt","desc"));
+  const unsub = onSnapshot(q, snap => {
+    const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderUsersTable(arr);
+  });
+  unsubscribers.push(unsub);
+}
+
+function renderUsersTable(users) {
+  const tb = $("#tbInvites") || $("#tbUsers"); // reutilizamos un tbody
+  if (!tb) return;
+  tb.innerHTML = "";
+  if (!users.length) {
+    tb.innerHTML = `<tr><td colspan="6" class="small text-slate-500">No hay usuarios.</td></tr>`;
+    return;
+  }
+  users.forEach(u => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${u.createdAt?.toDate ? u.createdAt.toDate().toLocaleString() : "-"}</td>
+      <td>${escapeHtml(u.displayName || "")}</td>
+      <td>${u.email || "-"}</td>
+      <td>${u.role || "empleado"}</td>
+      <td>${u.companyId || "-"}</td>
+      <td>
+        ${u.role === "empleado" ? `<button class="px-2 py-1 border rounded text-xs btnMakeAdmin" data-uid="${u.id}">Hacer admin</button>` : ""}
+      </td>
+    `;
+    tb.appendChild(tr);
+  });
+
+  $$(".btnMakeAdmin").forEach(b => b.onclick = async () => {
+    const uid = b.dataset.uid;
+    if (!confirm("Convertir usuario en administrador?")) return;
+    try {
+      // Only the Cloud Function (or server admin SDK) should change user roles; for now update users/{uid}.role (requires rules)
+      await updateDoc(doc(db, "users", uid), { role: "admin" });
+      alert("Usuario actualizado a admin (nota: para que los custom claims actualicen, desplegar una función que sincronice claims o pedir al usuario que vuelva a loguear).");
+    } catch (err) { console.error(err); alert("Error actualizando rol: "+err.message); }
+  });
+}
+
+/* ======================
+   UTILS
+   ====================== */
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/[&<>"'`=\/]/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c];
+  });
+}
+function normalizeForSearch(str) {
+  if (!str) return "";
+  return String(str).normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+/* ======================
+   Boot
+   ====================== */
+window.addEventListener("DOMContentLoaded", () => {
+  try { setupPosHandlers(); } catch(e) { /* ignore */ }
+});
+
+/* expose debug */
+window._dbg = { db, inventoryCache, salesCache, runTransaction };
+/* FIN app.js */
