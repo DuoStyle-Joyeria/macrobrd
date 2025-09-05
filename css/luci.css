@@ -1,5 +1,6 @@
 /* css/luci.css
-   Luci — identidad visual (versión extendida con overlay, toasts y burbuja asistente)
+   Luci — identidad visual final (humanizada)
+   Reemplaza completamente el archivo anterior con este.
 */
 
 /* --- Fuentes --- */
@@ -22,8 +23,8 @@
   --transition-fast: 180ms cubic-bezier(.2,.9,.2,1);
 }
 
-/* scope everything under body.luci so we don't conflict */
-.luci {
+/* Scope: apply styles only when body has class .luci */
+body.luci {
   font-family: "Open Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   background: var(--luci-bg);
   color: var(--luci-dark);
@@ -31,13 +32,18 @@
   -moz-osx-font-smoothing:grayscale;
 }
 
-/* headings */
-.luci h1, .luci h2, .luci h3 { font-family: "Montserrat", sans-serif; color: var(--luci-dark); margin:0 0 .5rem 0; }
-.luci h1 { font-size:1.6rem; font-weight:700; }
-.luci h2 { font-size:1.15rem; font-weight:600; }
-.luci h3 { font-size:1rem; font-weight:600; }
+/* Headings */
+.luci h1, .luci h2, .luci h3, .luci h4 {
+  font-family: "Montserrat", sans-serif;
+  color: var(--luci-dark);
+  margin: 0 0 .4rem 0;
+  letter-spacing: -0.01em;
+}
+.luci h1 { font-size: 1.6rem; font-weight:700; }
+.luci h2 { font-size: 1.125rem; font-weight:600; }
+.luci h3 { font-size: 1rem; font-weight:600; }
 
-/* Cards override to unify look */
+/* Generic card style (override Tailwind .bg-white to unify look) */
 .luci .bg-white {
   background: var(--luci-surface) !important;
   border-radius: var(--radius-soft) !important;
@@ -45,35 +51,57 @@
   border: 1px solid var(--card-border);
 }
 
-/* Buttons */
+/* Buttons and CTAs */
 .luci .luci-btn-primary, .luci button.bg-slate-900, .luci .bg-slate-900 {
   background: linear-gradient(180deg,var(--luci-blue), #1e40af);
   color:#fff !important;
-  border:1px solid rgba(37,99,235,0.9);
+  border-color: rgba(37,99,235,0.9);
   box-shadow: 0 6px 18px rgba(37,99,235,0.12);
   border-radius:8px;
+  padding:.55rem .9rem;
+  font-weight:600;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .luci .luci-btn-primary:hover { transform: translateY(-2px); }
-.luci .luci-btn-ghost { background:transparent; border:1px solid rgba(15,23,42,0.06); border-radius:8px; padding:.5rem .75rem; }
-.luci .luci-badge-success { background: rgba(16,185,129,0.12); color:var(--luci-green); padding:.3rem .6rem; border-radius:999px; font-weight:700; }
 
-/* Inputs */
-.luci input, .luci select, .luci textarea {
-  background:#fff; border:1px solid rgba(15,23,42,0.06); padding:.6rem .7rem; border-radius:8px; font-size:.95rem;
+.luci .luci-btn-ghost {
+  background: transparent; color:var(--luci-dark); border:1px solid rgba(15,23,42,0.06);
+  padding:.45rem .75rem; border-radius:8px; font-weight:600;
 }
-.luci input:focus, .luci select:focus, .luci textarea:focus { border-color:var(--luci-blue); box-shadow:var(--focus-ring); outline: none; }
+.luci .luci-btn-ghost:hover { background: rgba(15,23,42,0.03); }
+
+/* Success badge */
+.luci .luci-badge-success {
+  background: rgba(16,185,129,0.12);
+  color: var(--luci-green);
+  padding: .28rem .6rem;
+  border-radius: 999px;
+  font-weight:700;
+}
+
+/* Inputs / forms */
+.luci input, .luci select, .luci textarea {
+  background: #fff; border:1px solid rgba(15,23,42,0.06); padding:.6rem .7rem; border-radius:8px;
+  font-size: .95rem; color:var(--luci-dark); transition:border var(--transition-fast), box-shadow var(--transition-fast);
+}
+.luci input:focus, .luci select:focus, .luci textarea:focus {
+  border-color: var(--luci-blue); box-shadow: var(--focus-ring); outline: none;
+}
 
 /* Tables */
 .luci table { border-collapse: collapse; width:100%; font-size:.95rem; }
 .luci table th, .luci table td { padding:.75rem .6rem; text-align:left; border-bottom:1px solid rgba(15,23,42,0.04); }
-.luci table thead th { background: linear-gradient(180deg, rgba(250,250,250,0.9), rgba(248,249,250,0.9)); color:var(--luci-muted); font-weight:600; }
+.luci table thead th {
+  background: linear-gradient(180deg, rgba(250,250,250,0.9), rgba(248,249,250,0.9));
+  color:var(--luci-muted); font-weight:600; font-size:.9rem;
+}
+.luci table tbody tr:hover { background: rgba(15,23,42,0.02); }
 
 /* KPIs */
 .luci .kpi { font-family: "Montserrat", sans-serif; }
-.luci .kpi .value { font-size:1.5rem; font-weight:700; }
+.luci .kpi .value { font-size:1.5rem; font-weight:700; color:var(--luci-dark); }
 
-/* small helpers */
+/* Small helpers */
 .luci .small { font-size:.82rem; color:var(--luci-muted); }
 .luci .kbd { background: #111827; color:#fff; padding:2px 6px; border-radius:6px; font-size:12px; }
 
@@ -81,7 +109,7 @@
 .luci .pager-btn { padding:.4rem .6rem; border-radius:6px; font-weight:600; background:transparent; border:1px solid rgba(15,23,42,0.04); cursor:pointer; }
 .luci .pager-btn.active { background:var(--luci-blue); color:#fff; }
 
-/* Accessibility sr-only (for announcer) */
+/* Accessibility */
 .luci .sr-only {
   position: absolute !important;
   height: 1px; width: 1px;
@@ -90,17 +118,19 @@
   white-space: nowrap;
 }
 
-/* --- WELCOME OVERLAY (login) --- */
+/* ===== WELCOME OVERLAY (login) =====
+   - Animation reduced to 1.5s (user requested shorter)
+   - Uses a hidden checkbox to dismiss (no JS)
+*/
 .luci .luci-hidden-checkbox { position: absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden; opacity:0; pointer-events:none; }
 
-/* overlay inside authView: default visible, fades after animation OR when user clicks "Comenzar" (checkbox) */
 .luci .luci-welcome-overlay {
   position: absolute;
   inset: 0;
   display:flex;
   align-items:center;
   justify-content:center;
-  background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(243,244,246,0.9));
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(243,244,246,0.92));
   backdrop-filter: blur(4px);
   border-radius: 12px;
   z-index: 60;
@@ -108,20 +138,17 @@
   gap: .75rem;
   padding: 2rem;
   text-align:center;
-  transition: opacity 360ms ease, visibility 360ms ease;
-  animation: luci-welcome-fade 2.2s cubic-bezier(.2,.9,.2,1) 1;
+  transition: opacity 220ms ease, visibility 220ms ease;
+  animation: luci-welcome-fade 1.5s cubic-bezier(.2,.9,.2,1) 1;
   animation-fill-mode: forwards;
 }
 
-/* if user checks the hidden checkbox, hide overlay immediately */
 .luci #luci-welcome-toggle:checked ~ .luci-welcome-overlay { opacity: 0 !important; visibility:hidden !important; pointer-events:none; transform: translateY(-8px); }
 
-/* small logo large, tagline, CTA */
 .luci .luci-welcome-overlay img { width: 140px; height:140px; border-radius:12px; object-fit:contain; box-shadow: 0 8px 30px rgba(15,23,42,0.08); }
 .luci .luci-welcome-overlay h2 { font-family:"Montserrat",sans-serif; font-size:1.35rem; margin:0; color:var(--luci-dark); }
 .luci .luci-welcome-overlay p { color:var(--luci-muted); margin:0; font-size:.98rem; max-width:36rem; }
 
-/* CTA label styled as button that checks the checkbox */
 .luci .luci-welcome-cta {
   display:inline-block; margin-top: .75rem;
   background: linear-gradient(180deg,var(--luci-blue), #1e40af);
@@ -130,7 +157,6 @@
 }
 .luci .luci-welcome-skip { display:block; margin-top:.35rem; color:var(--luci-muted); font-size:.85rem; cursor:pointer; text-decoration:underline; }
 
-/* keyframes for initial overlay (stays then fades) */
 @keyframes luci-welcome-fade {
   0% { opacity: 0; transform: scale(.98) translateY(8px); }
   10% { opacity: 1; transform: scale(1) translateY(0); }
@@ -138,54 +164,24 @@
   100% { opacity: 0; transform: scale(.98) translateY(-8px); visibility:hidden; }
 }
 
-/* reduce motion respect */
+/* If user prefers reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .luci .luci-welcome-overlay { animation:none; }
 }
 
-/* ensure authView positioned relative to hold overlay */
-.luci #authView { position: relative; }
-
-/* --- ASSISTANT BUBBLE (dashboard) --- */
-.luci .luci-welcome-main {
-  margin-top: .6rem;
-  display:inline-block;
-  opacity:0;
-  transform: translateY(-6px) scale(.995);
-  transition: opacity 360ms ease, transform 360ms ease;
-}
-
-/* animate in when mainView becomes visible (js removes .hidden) */
-.luci #mainView:not(.hidden) .luci-welcome-main {
-  opacity:1;
-  transform: translateY(0) scale(1);
-  animation: luci-welcome-slide 580ms cubic-bezier(.2,.9,.2,1) both;
-}
-
-@keyframes luci-welcome-slide {
-  from { opacity:0; transform: translateY(-6px) scale(.995) }
-  to { opacity:1; transform: translateY(0) scale(1) }
-}
-
-/* bubble style */
-.luci .assistant-bubble {
-  background: linear-gradient(180deg, rgba(37,99,235,0.06), rgba(255,255,255,0.6));
-  border: 1px solid rgba(37,99,235,0.09);
+/* ===== Minimal Assist Message (we removed the big card as requested) ===== */
+.luci-message {
+  background: linear-gradient(180deg, rgba(37,99,235,0.04), rgba(255,255,255,0.6));
+  border-left: 4px solid rgba(37,99,235,0.12);
   color: var(--luci-dark);
-  padding:.6rem .9rem;
-  border-radius: 12px;
-  box-shadow: 0 6px 16px rgba(15,23,42,0.04);
-  font-size:.95rem;
-  max-width: 560px;
-  display:flex; gap:.6rem; align-items:flex-start;
+  padding:.8rem 1rem;
+  border-radius: 10px;
+  box-shadow: 0 6px 12px rgba(15,23,42,0.04);
+  font-size:.96rem;
+  margin-bottom:.6rem;
 }
-.luci .assistant-bubble .avatar {
-  width:36px; height:36px; border-radius:8px; overflow:hidden; flex:0 0 36px;
-  box-shadow: 0 6px 14px rgba(15,23,42,0.06);
-}
-.luci .assistant-bubble .avatar img { width:100%; height:100%; object-fit:cover; }
 
-/* --- TOASTS / NOTIFICATIONS --- */
+/* ===== Toasts / notifications ===== */
 .luci .luci-toasts {
   position: fixed;
   right: 16px;
@@ -197,8 +193,6 @@
   gap: .5rem;
   pointer-events: none;
 }
-
-/* single toast */
 .luci .luci-toast {
   pointer-events: auto;
   display:flex;
@@ -214,32 +208,25 @@
   font-size:.95rem;
   transition: transform 280ms ease, opacity 280ms ease;
 }
-
-/* visible state */
 .luci .luci-toast.show { opacity:1; transform: translateY(0); }
-
-/* types */
 .luci .luci-toast.success { border-left:4px solid var(--luci-green); }
 .luci .luci-toast.warn { border-left:4px solid var(--luci-yellow); }
 .luci .luci-toast.error { border-left:4px solid var(--luci-danger); }
-
-/* toast content */
 .luci .luci-toast .title { font-weight:700; color:var(--luci-dark); }
 .luci .luci-toast .message { color:var(--luci-muted); font-size:.92rem; }
+.luci .luci-toast .close { margin-left:auto; background:transparent; border:0; color:var(--luci-muted); cursor:pointer; }
 
-/* close button */
-.luci .luci-toast .close {
-  margin-left:auto; background:transparent; border:0; color:var(--luci-muted); cursor:pointer;
-}
-
-/* print: keep it clean */
+/* Print rules */
 @media print {
   .luci .luci-welcome-overlay, .luci .luci-toasts, .luci button, .luci .tab-btn, .luci .pager-btn { display:none !important; }
   .luci .bg-white { box-shadow:none !important; border:none !important; }
 }
 
-/* responsiveness */
-@media (min-width:768px) {
+/* Responsive tweaks (mobile-first) */
+@media (min-width: 768px) {
   .luci h1 { font-size:1.75rem; }
   .luci .kpi-grid { display:grid; grid-template-columns: repeat(3,1fr); gap:1rem; }
 }
+
+/* Tiny polish for canvases/charts */
+.luci canvas { background:transparent; display:block; max-width:100%; }

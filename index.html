@@ -11,8 +11,8 @@
   <!-- Chart.js para gráficas -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+  <!-- Mantengo tus estilos inline originales -->
   <style>
-    /* Mantengo tus estilos inline originales (no los toco) */
     table { border-collapse: collapse; width: 100%; }
     th, td { padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 0.95rem; }
     .hidden { display: none !important; }
@@ -22,27 +22,31 @@
     .kbd { background:#111827; color:#fff; padding:2px 6px; border-radius:4px; font-size:12px; }
   </style>
 
-  <!-- Luci identity CSS (after Tailwind) -->
+  <!-- Luci identity CSS (final) -->
   <link rel="stylesheet" href="css/luci.css">
 </head>
 <body class="bg-slate-50 text-slate-800 luci">
   <div id="app" class="max-w-6xl mx-auto p-4">
+
     <!-- AUTH -->
     <div id="authView" class="mt-10">
-      <!-- WELCOME OVERLAY: checkbox + overlay (mínimo html, no JS) -->
-      <!-- checkbox to dismiss overlay (hidden, used by CSS) -->
-      <input id="luci-welcome-toggle" type="checkbox" class="luci-hidden-checkbox" aria-hidden="true">
 
-      <!-- OVERLAY: big logo + tagline + CTA -->
+      <!-- ======= WELCOME OVERLAY (login) - agregado no intrusivo =======
+           - checkbox oculto para permitir "Comenzar" sin JS
+           - overlay con logo grande y CTA
+           - animación corta (1.5s) definida en css/luci.css
+      -->
+      <input id="luci-welcome-toggle" class="luci-hidden-checkbox" type="checkbox" aria-hidden="true" />
       <div class="luci-welcome-overlay" role="dialog" aria-labelledby="luciWelcomeTitle" aria-describedby="luciWelcomeDesc">
         <img src="assets/logo luci.png" alt="Logo Luci" />
         <h2 id="luciWelcomeTitle">Bienvenido a Luci</h2>
-        <p id="luciWelcomeDesc">Tu asistente virtual para organizar y hacer crecer tu negocio. Luci te ayudará con inventario, ventas, finanzas y estadísticas — todo de forma simple.</p>
+        <p id="luciWelcomeDesc">Tu asistente virtual para organizar y hacer crecer tu negocio. Luci te ayudará con inventarios, ventas, finanzas y estadísticas — todo de forma simple.</p>
         <label for="luci-welcome-toggle" class="luci-welcome-cta" role="button">Comenzar</label>
-        <label for="luci-welcome-toggle" class="luci-welcome-skip">Omitir animación</label>
+        <label for="luci-welcome-toggle" class="luci-welcome-skip">Omitir</label>
       </div>
+      <!-- ========================= END WELCOME OVERLAY ======================== -->
 
-      <!-- BLOQUE MARCA (logo cuadrado + tagline pequeño) -->
+      <!-- BLOQUE MARCA (logo cuadrado + tagline) -->
       <div class="luci-brand-wrapper mb-6" style="display:flex;align-items:center;gap:.75rem;">
         <div class="luci-brand" aria-hidden="true">
           <img src="assets/logo luci.png" alt="Luci logo" style="width:48px;height:48px;border-radius:8px;object-fit:contain;" />
@@ -58,8 +62,6 @@
         <!-- LOGIN -->
         <form id="loginForm" class="bg-white p-4 rounded shadow space-y-3" autocomplete="on">
           <h2 class="font-semibold">Iniciar sesión</h2>
-
-          <!-- microcopy para hacerlo amigable -->
           <label for="loginEmail" class="text-sm small">Usa el email registrado — Luci te reconoce</label>
           <input id="loginEmail" name="loginEmail" type="email" required placeholder="Email" class="w-full border rounded p-2" autocomplete="email">
           <input id="loginPass" name="loginPass" type="password" required placeholder="Contraseña" class="w-full border rounded p-2" autocomplete="current-password">
@@ -98,33 +100,25 @@
 
     <!-- APP PRINCIPAL -->
     <div id="mainView" class="hidden">
-      <div class="flex items-center justify-between mt-4">
+      <!-- HEADER: logo pequeño + saludo humano a la empresa + rol badge -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between mt-4 gap-4">
         <div class="flex items-center gap-3">
-          <!-- Logo pequeño en el header (acompaña el titulo) -->
           <img src="assets/logo luci.png" alt="Luci logo" class="w-10 h-10 rounded-md" style="object-fit:contain;" />
           <div>
-            <h1 class="text-2xl font-bold">Panel — <span id="companyName">Empresa</span></h1>
-            <p id="userRole" class="text-sm text-slate-500">Hola, soy <strong>Luci</strong>, tu asistente virtual.</p>
-
-            <!-- Burbuja asistente (aparece cuando mainView NO tiene .hidden) -->
-            <div class="luci-welcome-main" aria-live="polite">
-              <div class="assistant-bubble">
-                <div class="avatar" aria-hidden="true">
-                  <img src="assets/logo luci.png" alt="" />
-                </div>
-                <div class="assistant-text">
-                  <div style="font-weight:700;">Hola 👋 — soy Luci</div>
-                  <div class="small" style="color:var(--luci-muted)">¿Quieres revisar las ventas de hoy o actualizar inventario? Puedo ayudarte paso a paso.</div>
-                </div>
-              </div>
-            </div>
-
+            <!-- Saludo humanizado: se espera que app.js rellene #companyName -->
+            <h1 class="text-2xl font-bold">¡Bienvenido de nuevo, <span id="companyName">Empresa</span>!</h1>
+            <p id="userRole" class="text-sm text-slate-500 mt-1 inline-block bg-slate-100 px-2 py-0.5 rounded"></p>
           </div>
         </div>
         <div class="flex items-center gap-2">
           <button id="btnPerfil" class="px-3 py-2 rounded border luci-btn-ghost">Perfil</button>
           <button id="btnLogout" class="px-3 py-2 rounded bg-slate-900 text-white luci-btn-primary">Salir</button>
         </div>
+      </div>
+
+      <!-- Mensaje de bienvenida corto (texto, no tarjeta grande) -->
+      <div class="mt-4 luci-message" aria-live="polite">
+        <strong>Hola 👋 soy Luci</strong>. Estoy lista para ayudarte a organizar tus ventas, inventario y finanzas de hoy.
       </div>
 
       <!-- KPIs -->
@@ -386,10 +380,10 @@
     </div>
   </div>
 
-  <!-- Container for visual toasts (empty by default). Your JS can append <div class="luci-toast ...">..</div> here -->
+  <!-- Contenedor para toasts (vacío por defecto). Tu JS puede insertar notificaciones aquí -->
   <div id="luci-toasts" class="luci-toasts" aria-live="polite" role="status"></div>
 
-  <!-- Screen-reader announcer (for dynamic announcements) -->
+  <!-- Anunciador para lectores de pantalla -->
   <div class="sr-only" id="luci-announcer" aria-live="polite" aria-atomic="true"></div>
 
   <!-- PDF libs -->
