@@ -13,6 +13,7 @@ const firebaseConfig = {
   measurementId: "G-FW6QEJMZKT"
 };
 
+
 /* ======================
    IMPORTS (Firebase modular SDK)
    ====================== */
@@ -241,7 +242,7 @@ function applyRoleVisibility() {
     // empleado: solo ventas y egresos/ingresos (puedes cambiar)
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
-      btn.style.display = (t === "ventas" || t === "egresos" || t === "ingresos") ? "" : "none";
+      btn.style.display = (t === "ventas" || t === "egresos" || t === "ingresos" || t === "inventario") ? "" : "none";
     });
     $("[data-tab='ventas']").click();
   } else {
@@ -376,6 +377,8 @@ function renderInventoryTable() {
   const arr = Array.from(inventoryCache.values());
   if (!arr.length) {
     tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay productos aún.</td></tr>`;
+    // aplicar paginador (vacío)
+    aplicarPaginacion("tbInventory", "pagerInventory", 10);
     return;
   }
   arr.forEach(p => {
@@ -402,6 +405,9 @@ function renderInventoryTable() {
   $$(".btnAddStock").forEach(b => b.onclick = (ev) => promptAddStock(ev.currentTarget.dataset.id));
   $$(".btnDeleteProduct").forEach(b => b.onclick = (ev) => { if (confirm("Borrar producto?")) deleteProduct(ev.currentTarget.dataset.id); });
   $$(".btnEditProduct").forEach(b => b.onclick = (ev) => editProductModal(ev.currentTarget.dataset.id));
+
+  // paginador inventario
+  aplicarPaginacion("tbInventory", "pagerInventory", 10);
 }
 
 async function promptAddStock(productId) {
@@ -757,8 +763,9 @@ async function deleteSale(ventaId) {
       }
 
       const totalVenta = Number(venta.total || 0);
+      // categoria no definida aquí (old code referenced 'cat'), use fallback
       const movRef = doc(collection(db, "companies", companyId, "movements"));
-      tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: totalVenta,  categoria: cat, desc: `Eliminación venta ID ${ventaId}`, saleId: ventaId, createdAt: serverTimestamp() });
+      tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: totalVenta, desc: `Eliminación venta ID ${ventaId}`, saleId: ventaId, createdAt: serverTimestamp() });
 
       const newCaja = (Number(balances.cajaEmpresa || 0) - totalVenta);
       if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
@@ -811,6 +818,9 @@ function renderSalesTable() {
     const sale = saleSnap.data();
     downloadSalePdf(id, sale);
   });
+
+  // aplicar paginación
+  aplicarPaginacion("tbVentas", "pagerVentas", 10);
 }
 
 /* ======================
@@ -892,7 +902,6 @@ async function exportCollectionToPdf(title, docsArray, columns, filename) {
     alert("Error exportando PDF: " + err.message);
   }
 }
-
 
 /* ======================
    CHARTS
@@ -1021,15 +1030,15 @@ async function createEgreso() {
       if (pagadoPor === "empresa") {
         const movRef = doc(collection(db, "companies", companyId, "movements"));
         tx.set(movRef, { 
-  tipo: "egreso", 
-  cuenta: "cajaEmpresa", 
-  fecha: fechaStr, 
-  monto, 
-  categoria: cat,          // 🔥 guardamos categoría en el movimiento
-  desc: `Egreso: ${cat} ${desc?('- '+desc):''}`, 
-  egresoId: gastoRef.id, 
-  createdAt: serverTimestamp() 
-});
+          tipo: "egreso", 
+          cuenta: "cajaEmpresa", 
+          fecha: fechaStr, 
+          monto, 
+          categoria: cat,          // 🔥 guardamos categoría en el movimiento
+          desc: `Egreso: ${cat} ${desc?('- '+desc):''}`, 
+          egresoId: gastoRef.id, 
+          createdAt: serverTimestamp() 
+        });
 
         const newCaja = oldCaja - monto;
         if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
@@ -1042,7 +1051,7 @@ async function createEgreso() {
     $("#egresoPagadoPor").value = "empresa";
     await loadEgresosOnce();
   } catch (err) {
-    console.error("createEgreso error:", err);
+    console.error("createEgreso error", err);
     alert("Error registrando egreso: " + err.message);
   }
 }
@@ -1062,6 +1071,7 @@ function renderEgresosTable(egresosArray) {
   tb.innerHTML = "";
   if (!egresosArray.length) {
     tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay egresos registrados.</td></tr>`;
+    aplicarPaginacion("tbEgresos", "pagerEgresos", 10);
     return;
   }
   egresosArray.forEach(g => {
@@ -1082,6 +1092,9 @@ function renderEgresosTable(egresosArray) {
       await deleteEgreso(id);
     }
   });
+
+  // paginador egresos
+  aplicarPaginacion("tbEgresos", "pagerEgresos", 10);
 }
 
 async function deleteEgreso(egresoId) {
@@ -1102,7 +1115,7 @@ async function deleteEgreso(egresoId) {
         else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
 
         const movRef = doc(collection(db, "companies", companyId, "movements"));
-        tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: egreso.monto, categoria: cat, desc: `Reversión Egreso ID ${egresoId}`, egresoId, createdAt: serverTimestamp() });
+        tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: egreso.monto, desc: `Reversión Egreso ID ${egresoId}`, egresoId, createdAt: serverTimestamp() });
       }
 
       tx.delete(egresoRef);
@@ -1111,7 +1124,7 @@ async function deleteEgreso(egresoId) {
     alert("Egreso eliminado y caja ajustada (si aplica).");
     await loadEgresosOnce();
   } catch (err) {
-    console.error("deleteEgreso error:", err);
+    console.error("deleteEgreso error", err);
     alert("Error al eliminar egreso: " + err.message);
   }
 }
@@ -1146,15 +1159,15 @@ async function createIngreso() {
 
       const movRef = doc(collection(db, "companies", companyId, "movements"));
       tx.set(movRef, { 
-  tipo: "ingreso", 
-  cuenta: "cajaEmpresa", 
-  fecha: fechaStr, 
-  monto, 
-  categoria: cat,          // 🔥 guardamos categoría en el movimiento
-  desc: `Ingreso: ${cat} ${desc?('- '+desc):''}`, 
-  ingresoId: ingresoRef.id, 
-  createdAt: serverTimestamp() 
-});
+        tipo: "ingreso", 
+        cuenta: "cajaEmpresa", 
+        fecha: fechaStr, 
+        monto, 
+        categoria: cat,          // 🔥 guardamos categoría en el movimiento
+        desc: `Ingreso: ${cat} ${desc?('- '+desc):''}`, 
+        ingresoId: ingresoRef.id, 
+        createdAt: serverTimestamp() 
+      });
 
       const newCaja = oldCaja + monto;
       if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
@@ -1165,7 +1178,7 @@ async function createIngreso() {
     ["#ingresoFecha","#ingresoCat","#ingresoMonto","#ingresoDesc"].forEach(s => { try { $(s).value=""; } catch(e){} });
     await loadIngresosOnce();
   } catch (err) {
-    console.error("createIngreso error:", err);
+    console.error("createIngreso error", err);
     alert("Error registrando ingreso: " + err.message);
   }
 }
@@ -1183,12 +1196,13 @@ function renderIngresosTable(arr) {
   const tb = $("#tbIngresos");
   if (!tb) return;
   tb.innerHTML = "";
-  if (!arr.length) { tb.innerHTML = `<tr><td colspan="4" class="small text-slate-500">No hay ingresos registrados.</td></tr>`; return; }
+  if (!arr.length) { tb.innerHTML = `<tr><td colspan="4" class="small text-slate-500">No hay ingresos registrados.</td></tr>`; aplicarPaginacion("tbIngresos", "pagerIngresos", 10); return; }
   arr.forEach(i => {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td>${i.fecha}</td><td>${escapeHtml(i.categoria)}</td><td>${money(i.monto)}</td><td>${escapeHtml(i.descripcion || '')}</td>`;
     tb.appendChild(tr);
   });
+  aplicarPaginacion("tbIngresos", "pagerIngresos", 10);
 }
 
 /* ======================
@@ -1295,6 +1309,7 @@ function renderMovimientosTable(arr) {
   tb.innerHTML = "";
   if (!arr || !arr.length) {
     tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay movimientos en este rango.</td></tr>`;
+    aplicarPaginacion("tbMovimientos", "pagerMovimientos", 15);
     return;
   }
 
@@ -1315,6 +1330,9 @@ function renderMovimientosTable(arr) {
     `;
     tb.appendChild(tr);
   });
+
+  // aplicar paginación movimientos
+  aplicarPaginacion("tbMovimientos", "pagerMovimientos", 15);
 }
 
 
@@ -1323,22 +1341,27 @@ function renderMovimientosTable(arr) {
  * Exportar movimientos a PDF usando jsPDF + autoTable.
  * Si no pasas `movs`, exporta `lastMovimientosRendered`.
  */
-/**
- * exportMovimientosToPDF(movs = null, filename = null)
- * - movs: opcional array de movimientos; si no se pasa, usa lastMovimientosRendered (tu variable global).
- * - filename: opcional, nombre del archivo PDF.
- */
 // Reemplaza completamente la función exportMovimientosToPDF existente por esta
-// Reemplaza toda tu función exportMovimientosToPDF por esta
 function exportMovimientosToPDF(movs = null, filename = null) {
   try {
     const list = Array.isArray(movs) ? movs : lastMovimientosRendered;
     if (!list || !list.length) return alert("No hay movimientos para exportar.");
 
+    // Verificar jsPDF
     const { jsPDF } = window.jspdf || {};
     if (!jsPDF) {
       alert("jsPDF no está cargado. Añade el script de jsPDF en el HTML.");
       return;
+    }
+
+    // Asegurar que getMovimientoDetalle existe (si no, fallback simple)
+    if (typeof getMovimientoDetalle !== "function") {
+      window.getMovimientoDetalle = (mov) => {
+        if (mov.saleId) return "Venta";
+        if (mov.ingresoId) return "Ingreso";
+        if (mov.egresoId) return "Egreso";
+        return mov.tipo || "";
+      };
     }
 
     // Determinar rango de fechas (para título / nombre de archivo)
@@ -1362,33 +1385,36 @@ function exportMovimientosToPDF(movs = null, filename = null) {
     let totalNet = 0;
     for (const mov of list) {
       const fecha = mov.fecha || (mov.createdAt?.toDate ? mov.createdAt.toDate().toLocaleString() : '');
+      const tipo = mov.tipo || '';
       const detalle = String(getMovimientoDetalle(mov) || '').replace(/\s+/g,' ').trim();
       const cuenta = mov.cuenta || '';
       const montoNum = Number(mov.monto || 0);
-      const montoStr = (mov.tipo === 'egreso' ? `-${money(montoNum)}` : money(montoNum));
-      totalNet += (mov.tipo === 'egreso' ? -montoNum : montoNum);
+      // Mostrar monto con signo visual para egresos
+      const montoStr = (tipo === 'egreso' ? `-${money(montoNum)}` : money(montoNum));
+      totalNet += (tipo === 'egreso' ? -montoNum : montoNum);
 
-      // 👇 Aquí ya no metemos columna "tipo", solo detalle
-      rows.push([ fecha, detalle, cuenta, montoStr ]);
+      rows.push([ fecha, tipo, detalle, cuenta, montoStr ]);
     }
 
     // Añadir fila final TOTAL GENERAL
-    rows.push([ '', 'TOTAL GENERAL', '', money(totalNet) ]);
+    rows.push([ '', '', 'TOTAL GENERAL', '', money(totalNet) ]);
 
     // Generar tabla con autoTable
     doc.autoTable({
       startY: 70,
-      head: [['Fecha','Detalle','Cuenta','Monto']],
+      head: [['Fecha','Tipo','Detalle','Cuenta','Monto']],
       body: rows,
       styles: { fontSize: 9 },
       headStyles: { fillColor: [14,78,94], textColor: 255, halign: 'center' },
       columnStyles: {
         0: { cellWidth: 110 }, // fecha
-        1: { cellWidth: 250 }, // detalle
-        2: { cellWidth: 120 }, // cuenta
-        3: { cellWidth: 80, halign: 'right' } // monto
+        1: { cellWidth: 60 },  // tipo
+        2: { cellWidth: 220 }, // detalle
+        3: { cellWidth: 100 }, // cuenta
+        4: { cellWidth: 80, halign: 'right' } // monto
       },
       didParseCell: function (data) {
+        // estilizar la última fila (TOTAL) en negrita
         if (data.section === 'body' && data.row.index === rows.length - 1) {
           data.cell.styles.fontStyle = 'bold';
         }
@@ -1406,17 +1432,12 @@ function exportMovimientosToPDF(movs = null, filename = null) {
   }
 }
 
-
-
-
 /* Hook para botón de export (si lo agregas al HTML) */
 document.addEventListener("click", (ev) => {
   if (ev.target && ev.target.id === "btnExportMovimientosPDF") {
     exportMovimientosToPDF();
   }
 });
-
-
 
 /* quick mov buttons */
 document.addEventListener("click", (ev) => {
@@ -1493,6 +1514,7 @@ function renderUsersTable(users) {
   tb.innerHTML = "";
   if (!users.length) {
     tb.innerHTML = `<tr><td colspan="6" class="small text-slate-500">No hay usuarios.</td></tr>`;
+    aplicarPaginacion("tbEmployees", "pagerEmployees", 10);
     return;
   }
   users.forEach(u => {
@@ -1517,6 +1539,8 @@ function renderUsersTable(users) {
       alert("Usuario actualizado a admin (el usuario debe reloguear para ver cambios).");
     } catch (err) { console.error(err); alert("Error actualizando rol: "+err.message); }
   });
+
+  aplicarPaginacion("tbEmployees", "pagerEmployees", 8);
 }
 
 /* ======================
@@ -1591,21 +1615,41 @@ async function exportIngresosRangePrompt() {
 async function exportMovimientosRangePrompt() {
   const fromStr = prompt("Fecha desde (YYYY-MM-DD)");
   const toStr = prompt("Fecha hasta (YYYY-MM-DD)");
-  const from = parseDateInput(fromStr); const to = parseDateInput(toStr);
+  const from = parseDateInput(fromStr); 
+  const to = parseDateInput(toStr);
   if (!from || !to) return alert("Fechas inválidas");
   to.setHours(23,59,59,999);
-  const snap = await getDocs(query(collection(db,"companies",companyId,"movements"), orderBy("createdAt","desc")));
+
+  const snap = await getDocs(
+    query(collection(db,"companies",companyId,"movements"), orderBy("createdAt","desc"))
+  );
   const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Filtrar por rango
   const filtered = arr.filter(s => {
     const created = s.createdAt?.toDate ? s.createdAt.toDate() : (s.fecha ? new Date(s.fecha) : null);
     return created && created >= from && created <= to;
   });
-  await exportCollectionToPdf(`Movimientos ${formatDateForLabel(from)} → ${formatDateForLabel(to)}`, filtered, [
-    { key: 'fecha', title: 'Fecha' },
-    { key: 'tipo', title: 'Tipo' },
-    { key: 'cuenta', title: 'Cuenta' },
-    { key: 'monto', title: 'Monto', format: 'money' }
-  ], `movimientos_${formatDateForLabel(from)}_${formatDateForLabel(to)}.pdf`);
+
+  // 🔥 Agregar el campo `detalle` a cada movimiento usando tu función
+  const enriched = filtered.map(mov => ({
+    ...mov,
+    detalle: getMovimientoDetalle(mov)   // <- aquí se calcula antes de exportar
+  }));
+
+  // Exportar
+  await exportCollectionToPdf(
+    `Movimientos ${formatDateForLabel(from)} → ${formatDateForLabel(to)}`,
+    enriched,
+    [
+      { key: 'fecha', title: 'Fecha' },
+      { key: 'tipo', title: 'Tipo' },
+      { key: 'detalle', title: 'Detalle' },  // <- ya existe en los datos
+      { key: 'cuenta', title: 'Cuenta' },
+      { key: 'monto', title: 'Monto', format: 'money' }
+    ],
+    `movimientos_${formatDateForLabel(from)}_${formatDateForLabel(to)}.pdf`
+  );
 }
 
 /* ======================
@@ -1632,4 +1676,76 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 window._dbg = { db, inventoryCache, salesCache, runTransaction };
+
+
+/* ======================
+   PAGINADOR GENÉRICO
+   - Úsalo con cualquier <tbody id="..."> poniendo un <div id="pager..."></div> debajo
+   - Llamar: aplicarPaginacion('tbVentas','pagerVentas', 10);
+   ====================== */
+function aplicarPaginacion(tableId, pagerId, pageSize = 10) {
+  const tb = document.getElementById(tableId);
+  const pager = document.getElementById(pagerId);
+  if (!tb || !pager) return;
+
+  const filas = Array.from(tb.querySelectorAll("tr"));
+  const totalPaginas = Math.max(1, Math.ceil(filas.length / pageSize));
+  if (filas.length === 0) {
+    pager.innerHTML = ""; // nada que paginar
+    return;
+  }
+
+  // muestra la página p (1..totalPaginas)
+  function mostrarPagina(p) {
+    p = Math.max(1, Math.min(totalPaginas, p));
+    filas.forEach((fila, i) => {
+      fila.style.display = (i >= (p-1)*pageSize && i < p*pageSize) ? "" : "none";
+    });
+
+    // construir controles (Anterior / página X de Y / Siguiente)
+    pager.innerHTML = "";
+    const btnPrev = document.createElement("button");
+    btnPrev.className = "px-2 py-1 mr-2 border rounded text-sm";
+    btnPrev.textContent = "Anterior";
+    btnPrev.disabled = (p === 1);
+    btnPrev.addEventListener("click", () => mostrarPagina(p-1));
+    pager.appendChild(btnPrev);
+
+    const info = document.createElement("span");
+    info.className = "text-sm mx-2";
+    info.textContent = `Página ${p} de ${totalPaginas} — ${filas.length} filas`;
+    pager.appendChild(info);
+
+    const btnNext = document.createElement("button");
+    btnNext.className = "px-2 py-1 ml-2 border rounded text-sm";
+    btnNext.textContent = "Siguiente";
+    btnNext.disabled = (p === totalPaginas);
+    btnNext.addEventListener("click", () => mostrarPagina(p+1));
+    pager.appendChild(btnNext);
+
+    // opcional: botones rápidos de página (1,2,3...) si hay pocas páginas
+    if (totalPaginas > 1 && totalPaginas <= 8) {
+      const container = document.createElement("div");
+      container.style.display = "inline-block";
+      container.style.marginLeft = "12px";
+      for (let i=1;i<=totalPaginas;i++) {
+        const b = document.createElement("button");
+        b.textContent = i;
+        b.className = "mx-1 px-2 py-0.5 border rounded text-xs";
+        if (i === p) {
+          b.style.fontWeight = "700";
+          b.disabled = true;
+        } else {
+          b.addEventListener("click", ((page)=>() => mostrarPagina(page))(i));
+        }
+        container.appendChild(b);
+      }
+      pager.appendChild(container);
+    }
+  }
+
+  // inicial
+  mostrarPagina(1);
+}
+
 /* FIN app.js */
