@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>App-Registro — Inventario & POS (Multi-tenant)</title>
+
+  <!-- Tailwind para estilos -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js para gráficas -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Mantengo tus estilos inline originales -->
+  <style>
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 0.95rem; }
+    .hidden { display: none !important; }
+    .small { font-size: 0.85rem; }
+    .search-suggestion { cursor: pointer; padding: 6px; border-bottom: 1px solid #eee; }
+    .search-suggestion:hover { background: #f1f5f9; }
+    .kbd { background:#111827; color:#fff; padding:2px 6px; border-radius:4px; font-size:12px; }
+  </style>
+
+  <!-- Luci identity CSS (final) -->
+  <link rel="stylesheet" href="css/luci.css">
+</head>
+<body class="bg-slate-50 text-slate-800 luci">
+  <div id="app" class="max-w-6xl mx-auto p-4">
+
+    <!-- AUTH -->
+    <div id="authView" class="mt-10">
+
+      <!-- ======= WELCOME OVERLAY (login) - agregado no intrusivo =======
+           - checkbox oculto para permitir "Comenzar" sin JS
+           - overlay con logo grande y CTA
+           - animación corta (1.5s) definida en css/luci.css
+      -->
+      <input id="luci-welcome-toggle" class="luci-hidden-checkbox" type="checkbox" aria-hidden="true" />
+      <div class="luci-welcome-overlay" role="dialog" aria-labelledby="luciWelcomeTitle" aria-describedby="luciWelcomeDesc">
+        <img src="assets/logo luci.png" alt="Logo Luci" />
+        <h2 id="luciWelcomeTitle">Bienvenido a Luci</h2>
+        <p id="luciWelcomeDesc">Tu asistente virtual para organizar y hacer crecer tu negocio. Luci te ayudará con inventarios, ventas, finanzas y estadísticas — todo de forma simple.</p>
+        <label for="luci-welcome-toggle" class="luci-welcome-cta" role="button">Comenzar</label>
+        <label for="luci-welcome-toggle" class="luci-welcome-skip">Omitir</label>
+      </div>
+      <!-- ========================= END WELCOME OVERLAY ======================== -->
+
+      <!-- BLOQUE MARCA (logo cuadrado + tagline) -->
+      <div class="luci-brand-wrapper mb-6" style="display:flex;align-items:center;gap:.75rem;">
+        <div class="luci-brand" aria-hidden="true">
+          <img src="assets/logo luci.png" alt="Luci logo" style="width:48px;height:48px;border-radius:8px;object-fit:contain;" />
+        </div>
+        <div class="luci-brand-text">
+          <div class="luci-name" style="font-family: 'Montserrat', sans-serif; font-weight:600; font-size:1.25rem; color: #0f172a;">Luci</div>
+          <div class="luci-tagline" style="font-size:0.9rem;color:#6B7280">Tu asistente virtual para organizar y hacer crecer tu negocio</div>
+        </div>
+      </div>
+
+      <h1 class="text-2xl font-bold mb-4">Acceso</h1>
+      <div class="grid md:grid-cols-2 gap-6">
+        <!-- LOGIN -->
+        <form id="loginForm" class="bg-white p-4 rounded shadow space-y-3" autocomplete="on">
+          <h2 class="font-semibold">Iniciar sesión</h2>
+          <label for="loginEmail" class="text-sm small">Usa el email registrado — Luci te reconoce</label>
+          <input id="loginEmail" name="loginEmail" type="email" required placeholder="Email" class="w-full border rounded p-2" autocomplete="email">
+          <input id="loginPass" name="loginPass" type="password" required placeholder="Contraseña" class="w-full border rounded p-2" autocomplete="current-password">
+          <button class="w-full bg-slate-900 text-white py-2 rounded luci-btn-primary">Entrar</button>
+        </form>
+
+        <!-- REGISTER -->
+        <form id="registerForm" class="bg-white p-4 rounded shadow space-y-3">
+          <h2 class="font-semibold">Crear cuenta</h2>
+          <input id="regName" type="text" required placeholder="Tu nombre (p.ej. Brandon)" class="w-full border rounded p-2">
+          <input id="regEmail" type="email" required placeholder="Email" class="w-full border rounded p-2">
+          <input id="regPass" type="password" required placeholder="Contraseña" class="w-full border rounded p-2">
+          <select id="regRole" class="w-full border rounded p-2">
+            <option value="admin">Administrador</option>
+            <option value="empleado">Empleado</option>
+          </select>
+
+          <!-- Campos solo para EMPLEADO -->
+          <div id="employeeExtra" class="space-y-2 hidden">
+            <input id="regCompanyCode" type="text" placeholder="Código de Empresa (companyId)" class="w-full border rounded p-2">
+            <input id="regInviteCode" type="text" placeholder="Código de Invitación" class="w-full border rounded p-2">
+            <p class="text-xs text-slate-500">
+              Pide al administrador el <span class="kbd">Código de Empresa</span> y el <span class="kbd">Código de Invitación</span>.
+            </p>
+          </div>
+
+          <button class="w-full bg-emerald-600 text-white py-2 rounded luci-btn-ghost">Crear</button>
+        </form>
+      </div>
+
+      <p class="text-sm text-slate-500 mt-4">
+        Nota: los administradores crean su propia empresa automáticamente. Los empleados deben registrarse con
+        un código de invitación y el código de empresa del administrador para quedar vinculados.
+      </p>
+    </div>
+
+    <!-- APP PRINCIPAL -->
+    <div id="mainView" class="hidden">
+      <!-- HEADER: logo pequeño + saludo humano a la empresa + rol badge -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between mt-4 gap-4">
+        <div class="flex items-center gap-3">
+          <img src="assets/logo luci.png" alt="Luci logo" class="w-10 h-10 rounded-md" style="object-fit:contain;" />
+          <div>
+            <!-- Saludo humanizado: se espera que app.js rellene #companyName -->
+            <h1 class="text-2xl font-bold">¡Bienvenido de nuevo, <span id="companyName">Empresa</span>!</h1>
+            <p id="userRole" class="text-sm text-slate-500 mt-1 inline-block bg-slate-100 px-2 py-0.5 rounded"></p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnPerfil" class="px-3 py-2 rounded border luci-btn-ghost">Perfil</button>
+          <button id="btnLogout" class="px-3 py-2 rounded bg-slate-900 text-white luci-btn-primary">Salir</button>
+        </div>
+      </div>
+
+      <!-- Mensaje de bienvenida corto (texto, no tarjeta grande) -->
+      <div class="mt-4 luci-message" aria-live="polite">
+        <strong>Hola 👋 soy Luci</strong>. Estoy lista para ayudarte a organizar tus ventas, inventario y finanzas de hoy.
+      </div>
+
+      <!-- KPIs -->
+      <div class="grid md:grid-cols-3 gap-4 mt-4">
+        <div class="bg-white p-4 rounded shadow">
+          <div class="text-sm text-slate-500">Caja Empresa</div>
+          <div id="kpiCajaEmpresa" class="text-2xl font-semibold">$0</div>
+          <div class="mt-2 text-xs text-slate-600">
+            <button id="btnCajaHoy" class="px-2 py-1 border rounded mr-1 pager-btn">Hoy</button>
+            <button id="btnCaja7d" class="px-2 py-1 border rounded mr-1 pager-btn">7 días</button>
+            <button id="btnCaja30d" class="px-2 py-1 border rounded mr-1 pager-btn">30 días</button>
+            <button id="btnCajaCustomToggle" class="px-2 py-1 border rounded">Rango</button>
+            <div id="cajaCustom" class="mt-2 hidden">
+              <input type="date" id="cajaFrom" class="border rounded p-1 mr-1">
+              <input type="date" id="cajaTo" class="border rounded p-1 mr-1">
+              <button id="btnCajaCustom" class="px-2 py-1 bg-slate-900 text-white rounded luci-btn-primary">Ver</button>
+            </div>
+          </div>
+          <div id="kpiCajaRangeResult" class="text-sm text-slate-500 mt-2">Caja en rango: —</div>
+        </div>
+
+        <div class="bg-white p-4 rounded shadow">
+          <div class="text-sm text-slate-500">Inventario (unidades)</div>
+          <div id="kpiInventarioTotal" class="text-2xl font-semibold">0</div>
+        </div>
+
+        <div class="bg-white p-4 rounded shadow">
+          <div class="text-sm text-slate-500">Deudas</div>
+          <div id="kpiDeudas" class="text-2xl font-semibold">$0</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="mt-6">
+        <div class="flex gap-2 flex-wrap">
+          <button data-tab="ventas" class="tab-btn px-3 py-2 rounded bg-slate-900 text-white">Ventas</button>
+          <button data-tab="inventario" class="tab-btn px-3 py-2 rounded border">Inventario</button>
+          <button data-tab="egresos" class="tab-btn px-3 py-2 rounded border">Egresos</button>
+          <button data-tab="ingresos" class="tab-btn px-3 py-2 rounded border">Ingresos</button>
+          <button data-tab="movimientos" class="tab-btn px-3 py-2 rounded border">Movimientos</button>
+          <button data-tab="estadisticas" class="tab-btn px-3 py-2 rounded border">Estadísticas</button>
+          <!-- Solo admin -->
+          <button data-tab="usuarios" class="tab-btn px-3 py-2 rounded border">Usuarios</button>
+        </div>
+
+        <!-- VENTAS -->
+        <section id="tab-ventas" class="tab mt-4">
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="bg-white p-4 rounded shadow">
+              <h3 class="font-semibold text-lg">POS — Registrar Venta</h3>
+
+              <!-- Buscador avanzado -->
+              <div class="mb-4">
+                <input id="posSearchInput" type="text" placeholder="Buscar producto por nombre, color, talla, equipo..." class="border rounded p-2 w-full" />
+                <div id="posSearchResults" class="border rounded bg-white mt-1 hidden max-h-60 overflow-y-auto"></div>
+              </div>
+
+              <div id="cartContainer" class="mt-3">
+                <table class="w-full" id="cartTable">
+                  <thead class="text-left"><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th></th></tr></thead>
+                  <tbody id="cartBody"></tbody>
+                </table>
+
+                <div class="flex gap-2 mt-3">
+                  <button id="btnAddCartLine" class="px-3 py-2 bg-slate-900 text-white rounded luci-btn-primary">Agregar artículo</button>
+                  <button id="btnClearCart" class="px-3 py-2 border rounded luci-btn-ghost">Limpiar</button>
+                </div>
+
+                <div class="mt-4 space-y-2">
+                  <label class="text-sm">Cliente (opcional)</label>
+                  <input id="saleClient" class="w-full border rounded p-2" placeholder="Nombre / teléfono">
+                  <label class="text-sm">Tipo de venta</label>
+                  <select id="saleType" class="w-full border rounded p-2"><option value="minorista">Minorista</option><option value="mayorista">Mayorista</option></select>
+                  <label class="text-sm">Canal</label>
+                  <select id="saleChannel" class="w-full border rounded p-2"><option value="fisico">Físico</option><option value="online">Online</option></select>
+                </div>
+
+                <div class="mt-4 text-right">
+                  <div class="text-sm">Total</div>
+                  <div id="cartTotal" class="text-2xl font-semibold">$0</div>
+                  <button id="btnSubmitSale" class="mt-3 w-full bg-emerald-600 text-white py-2 rounded luci-badge-success">Confirmar venta</button>
+                  <button id="btnExportSalesRange" class="mt-2 w-full bg-slate-800 text-white py-1 rounded">Exportar ventas (rango)</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white p-4 rounded shadow overflow-auto">
+              <h3 class="font-semibold text-lg mb-2">Historial de Ventas</h3>
+              <table class="w-full text-sm">
+                <thead class="text-left"><tr><th>Fecha</th><th>Cliente</th><th>Total</th><th>Items</th><th>Acciones</th></tr></thead>
+                <tbody id="tbVentas"></tbody>
+                <table>
+  <tbody id="tbVentas"></tbody>
+</table>
+<div id="pagerVentas" class="mt-2"></div>
+
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- INVENTARIO -->
+        <section id="tab-inventario" class="tab hidden mt-4">
+          <div class="grid md:grid-cols-2 gap-4">
+            <form id="formProduct" class="bg-white p-4 rounded shadow space-y-2">
+              <h3 class="font-semibold text-lg">Crear Producto / Variante</h3>
+              <input type="text" id="prodName" placeholder="Nombre (ej: Polo Clásico)" required class="w-full border rounded p-2" />
+              <input type="text" id="prodSku" placeholder="SKU (opcional)" class="w-full border rounded p-2" />
+              <div class="grid grid-cols-3 gap-2">
+                <input id="prodGender" placeholder="Género (Hombre/Mujer/Unisex)" class="border rounded p-2" />
+                <input id="prodSize" placeholder="Talla (S/M/L/...)" class="border rounded p-2" />
+                <input id="prodColor" placeholder="Color (Azul/Rojo/...)" class="border rounded p-2" />
+              </div>
+              <input type="text" id="prodTeam" placeholder="Equipo (opcional)" class="w-full border rounded p-2" />
+              <div class="grid grid-cols-2 gap-2">
+                <input type="number" id="prodCost" placeholder="Costo" step="0.01" min="0" class="border rounded p-2" />
+                <input type="number" id="prodPrice" placeholder="Precio" step="0.01" min="0" class="border rounded p-2" />
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <input type="number" id="prodInitialStock" placeholder="Stock inicial (cantidad)" min="0" step="1" class="border rounded p-2" />
+                <input type="text" id="prodNotes" placeholder="Notas (opcional)" class="border rounded p-2" />
+              </div>
+
+              <button id="btnCreateProduct" class="w-full bg-emerald-600 text-white py-2 rounded">Crear producto</button>
+            </form>
+
+            <div class="bg-white p-4 rounded shadow overflow-auto">
+              <h3 class="font-semibold text-lg mb-2">Inventario</h3>
+              <table class="w-full text-sm">
+                <thead class="text-left"><tr><th>Nombre</th><th>Attrs</th><th>Precio</th><th>Stock</th><th>Acciones</th></tr></thead>
+                <tbody id="tbInventory"></tbody>
+</table>
+<div id="pagerInventory" class="mt-2"></div>
+
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- EGRESOS -->
+        <section id="tab-egresos" class="tab hidden mt-4">
+          <div class="grid md:grid-cols-2 gap-4">
+            <form id="formEgreso" class="bg-white p-4 rounded shadow space-y-2">
+              <h3 class="font-semibold text-lg">Registrar Egreso</h3>
+              <input type="date" id="egresoFecha" required class="w-full border rounded p-2">
+              <input type="text" id="egresoCat" placeholder="Categoría" required class="w-full border rounded p-2">
+              <input type="number" id="egresoMonto" placeholder="Monto" step="0.01" min="0" required class="w-full border rounded p-2">
+              <input type="text" id="egresoDesc" placeholder="Descripción" class="w-full border rounded p-2">
+              <select id="egresoPagadoPor" class="w-full border rounded p-2">
+                <option value="empresa">Empresa</option>
+                <option value="otro">Otro</option>
+              </select>
+              <button id="btnSaveEgreso" class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Egreso</button>
+              <button id="btnExportEgresosRange" class="w-full mt-2 bg-slate-800 text-white py-2 rounded">Exportar egresos (rango)</button>
+            </form>
+
+            <div class="bg-white p-4 rounded shadow overflow-auto">
+              <h3 class="font-semibold text-lg mb-2">Historial de Egresos</h3>
+              <table class="w-full text-sm">
+                <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th><th>Acciones</th></tr></thead>
+                
+                <tbody id="tbEgresos"></tbody></table>
+                <div id="pagerEgresos" class="mt-2"></div>
+
+              
+            </div>
+          </div>
+        </section>
+
+        <!-- INGRESOS -->
+        <section id="tab-ingresos" class="tab hidden mt-4">
+          <div class="grid md:grid-cols-2 gap-4">
+            <form id="formIngreso" class="bg-white p-4 rounded shadow space-y-2">
+              <h3 class="font-semibold text-lg">Registrar Ingreso</h3>
+              <input type="date" id="ingresoFecha" required class="w-full border rounded p-2">
+              <input type="text" id="ingresoCat" placeholder="Categoria / Fuente" required class="w-full border rounded p-2">
+              <input type="number" id="ingresoMonto" placeholder="Monto" step="0.01" min="0" required class="w-full border rounded p-2">
+              <input type="text" id="ingresoDesc" placeholder="Descripción" class="w-full border rounded p-2">
+              <button id="btnSaveIngreso" class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Ingreso</button>
+              <button id="btnExportIngresosRange" class="w-full mt-2 bg-slate-800 text-white py-2 rounded">Exportar ingresos (rango)</button>
+            </form>
+
+            <div class="bg-white p-4 rounded shadow overflow-auto">
+              <h3 class="font-semibold text-lg mb-2">Historial de Ingresos</h3>
+              <table class="w-full text-sm">
+                <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th></tr></thead>
+                <tbody id="tbIngresos"></tbody></table>
+                <div id="pagerIngresos" class="mt-2"></div>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- MOVIMIENTOS -->
+        <section id="tab-movimientos" class="tab hidden mt-4">
+          <div class="bg-white p-4 rounded shadow">
+            <h3 class="font-semibold">Movimientos</h3>
+            <div id="movimientosContainer" class="text-sm text-slate-600">
+              <div class="mb-2">
+                <button id="btnMovHoy" class="px-2 py-1 border rounded mr-1">Hoy</button>
+                <button id="btnMov7d" class="px-2 py-1 border rounded mr-1">7 días</button>
+                <button id="btnMov30d" class="px-2 py-1 border rounded mr-1">30 días</button>
+                <button id="btnExportMovimientosRange" class="px-2 py-1 bg-slate-800 text-white rounded">Exportar movimientos (rango)</button>
+              </div>
+              <table class="w-full text-sm">
+                <thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Monto</th><th>Desc</th></tr></thead>
+                <tbody id="tbMovimientos"></tbody>
+                <table>
+  <tbody id="tbMovimientos"></tbody>
+</table>
+<div id="pagerMovimientos" class="mt-2"></div>
+
+
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ESTADÍSTICAS -->
+        <section id="tab-estadisticas" class="tab hidden mt-4">
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="bg-white p-4 rounded shadow" style="height:320px"><h3 class="font-semibold mb-2">Top Productos (últimos 90 días)</h3><canvas id="chartTopProducts" height="280"></canvas></div>
+            <div class="bg-white p-4 rounded shadow" style="height:320px"><h3 class="font-semibold mb-2">Ventas por día (últimos 30 días)</h3><canvas id="chartVentasPorDia" height="280"></canvas></div>
+          </div>
+        </section>
+
+        <!-- USUARIOS (solo Admin) -->
+        <section id="tab-usuarios" class="tab hidden mt-4">
+          <div class="grid md:grid-cols-2 gap-4">
+            <!-- Crear empleado -->
+            <div class="bg-white p-4 rounded shadow space-y-2">
+              <h3 class="font-semibold text-lg">Crear Empleado (desde admin)</h3>
+              <div class="text-sm text-slate-600">Código de Empresa: <span id="companyIdLabel" class="font-mono bg-slate-100 px-2 py-1 rounded"></span></div>
+              <input id="invName" type="text" placeholder="Nombre del empleado" class="w-full border rounded p-2">
+              <input id="invEmail" type="email" placeholder="Email del empleado (requerido)" class="w-full border rounded p-2">
+              <!-- IMPORTANTE: id esperado por tu JS -->
+              <input id="invPass" type="password" placeholder="Contraseña (requerida)" class="w-full border rounded p-2">
+              <select id="invRole" class="w-full border rounded p-2">
+                <option value="empleado">Empleado</option>
+                <option value="admin">Administrador (co-propietario)</option>
+              </select>
+              <button id="btnCreateEmployee" class="w-full bg-emerald-600 text-white py-2 rounded">Crear empleado</button>
+              <p class="text-xs text-slate-500">El administrador define correo y contraseña; el empleado podrá iniciar sesión con esos datos.</p>
+            </div>
+
+            <!-- Empleados -->
+            <div class="bg-white p-4 rounded shadow overflow-auto">
+              <h3 class="font-semibold text-lg mb-2">Empleados</h3>
+              <table class="w-full text-sm">
+                <thead class="text-left"><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
+                <tbody id="tbEmployees"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenedor para toasts (vacío por defecto). Tu JS puede insertar notificaciones aquí -->
+  <div id="luci-toasts" class="luci-toasts" aria-live="polite" role="status"></div>
+
+  <!-- Anunciador para lectores de pantalla -->
+  <div class="sr-only" id="luci-announcer" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- PDF libs -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.25/dist/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Llamamos al JS principal que contiene toda la lógica (NO MODIFICADO) -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
