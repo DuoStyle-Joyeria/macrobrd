@@ -230,3 +230,39 @@ body.luci {
 
 /* Tiny polish for canvases/charts */
 .luci canvas { background:transparent; display:block; max-width:100%; }
+
+
+
+/* Estilo del toast de Luci */
+.luci-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #2563EB; /* Azul principal */
+  color: white;
+  padding: 14px 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Open Sans", sans-serif;
+  font-size: 15px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.4s ease;
+}
+
+.luci-toast .luci-toast-icon {
+  font-size: 18px;
+}
+
+.luci-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.hidden {
+  display: none;
+}

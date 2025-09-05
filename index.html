@@ -376,6 +376,35 @@
           </div>
         </section>
 
+
+
+        <!-- Notificación personalizada -->
+<div id="luci-toast" class="luci-toast hidden">
+  <div class="luci-toast-content">
+    <span class="luci-toast-icon">✅</span>
+    <span id="luci-toast-message">Venta registrada correctamente</span>
+  </div>
+</div>
+
+<script>
+  // Interceptar alert() sin modificar tu JS original
+  (function() {
+    const oldAlert = window.alert;
+    window.alert = function(message) {
+      const toast = document.getElementById("luci-toast");
+      const text = document.getElementById("luci-toast-message");
+      text.textContent = message;
+      toast.classList.remove("hidden");
+      setTimeout(() => {
+        toast.classList.add("hidden");
+      }, 3000); // Se oculta automáticamente después de 3s
+      return oldAlert; // opcional, si quieres mantener el alert nativo
+    };
+  })();
+</script>
+
+
+
       </div>
     </div>
   </div>
