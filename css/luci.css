@@ -1,0 +1,217 @@
+/* css/luci.css
+   Luci — identidad visual
+   - Cargar fuentes
+   - Variables de paleta
+   - Estilos globales, tarjetas, botones, tablas, formularios, tabs, KPIs, responsividad, print
+*/
+
+/* --- Fuentes --- */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Open+Sans:wght@400;600&display=swap');
+
+:root{
+  --luci-blue: #2563EB;
+  --luci-green: #10B981;
+  --luci-yellow: #FACC15;
+  --luci-bg: #F3F4F6;
+  --luci-surface: #ffffff;
+  --luci-muted: #6B7280; /* gray-500 */
+  --luci-dark: #0F172A; /* nearly black for text */
+  --luci-danger: #EF4444;
+  --radius-soft: 10px;
+  --card-shadow: 0 6px 18px rgba(17,24,39,0.06);
+  --card-border: rgba(15,23,42,0.04);
+  --focus-ring: 0 0 0 4px rgba(37,99,235,0.12);
+  --gap: 1rem;
+  --transition-fast: 180ms cubic-bezier(.2,.9,.2,1);
+}
+
+/* Only apply when body has class "luci" (minimal html change)
+   This avoids interfering with other sites / styles.
+*/
+.luci {
+  --body-font: "Open Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  --title-font: "Montserrat", sans-serif;
+  font-family: var(--body-font);
+  background: var(--luci-bg);
+  color: var(--luci-dark);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  line-height: 1.45;
+}
+
+/* Base typographic tokens */
+.luci h1, .luci h2, .luci h3, .luci h4 {
+  font-family: var(--title-font);
+  color: var(--luci-dark);
+  margin: 0 0 .5rem 0;
+  letter-spacing: -.01em;
+}
+.luci h1 { font-size: 1.5rem; font-weight:700; }
+.luci h2 { font-size: 1.125rem; font-weight:600; }
+.luci h3 { font-size: 1rem; font-weight:600; }
+.luci p, .luci label, .luci input, .luci select, .luci textarea { font-family: var(--body-font); color: var(--luci-dark); }
+
+/* Container smoothing (your root #app already centers) */
+.luci #app { padding: 1rem; }
+
+/* --- Brand block (optional insertion) --- */
+.luci-brand-wrapper {
+  display:flex;
+  align-items:center;
+  gap:.75rem;
+}
+.luci-brand {
+  width:48px;height:48px;flex:0 0 48px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+}
+.luci-brand-text .luci-name{
+  font-family:var(--title-font); font-weight:700; font-size:1.25rem; color:var(--luci-dark);
+}
+.luci-brand-text .luci-tagline{
+  font-size:.82rem; color:var(--luci-muted); margin-top:2px;
+}
+
+/* --- Cards (override .bg-white .rounded styling in a scoped way) --- */
+.luci .bg-white {
+  background: var(--luci-surface) !important;
+  border-radius: var(--radius-soft) !important;
+  box-shadow: var(--card-shadow) !important;
+  border: 1px solid var(--card-border);
+}
+
+/* Card content spacing helpers */
+.luci .p-4 { padding: 1.25rem !important; }
+.luci .p-2 { padding: .5rem !important; }
+
+/* --- Buttons / CTA --- */
+.luci .luci-btn { display:inline-flex; align-items:center; gap:.5rem; justify-content:center; padding:.55rem .9rem; border-radius:8px; font-weight:600; cursor:pointer; transition:all var(--transition-fast); text-decoration:none; border:1px solid transparent; }
+.luci .luci-btn:focus { outline: none; box-shadow: var(--focus-ring); }
+.luci .luci-btn:active { transform:translateY(1px); }
+
+/* Primary (actions) */
+.luci .luci-btn-primary, .luci button.bg-slate-900, .luci .bg-slate-900 {
+  background: linear-gradient(180deg,var(--luci-blue), color-mix(in srgb, var(--luci-blue) 85%, black 10%));
+  color: #fff !important;
+  border-color: rgba(37,99,235,0.9);
+  box-shadow: 0 6px 18px rgba(37,99,235,0.12);
+}
+.luci .luci-btn-primary:hover, .luci button.bg-slate-900:hover { transform: translateY(-1px); }
+
+/* Secondary (outline) */
+.luci .luci-btn-ghost {
+  background: transparent; color:var(--luci-dark); border:1px solid rgba(15,23,42,0.06);
+}
+.luci .luci-btn-ghost:hover { background: rgba(15,23,42,0.03); }
+
+/* Success (green) */
+.luci .luci-badge-success {
+  background: rgba(16,185,129,0.12);
+  color: var(--luci-green);
+  padding: .25rem .5rem;
+  border-radius: 999px; font-weight:600; font-size:.85rem;
+}
+
+/* Accent CTA (yellow) */
+.luci .luci-cta-accent {
+  background: linear-gradient(180deg,var(--luci-yellow), color-mix(in srgb,var(--luci-yellow) 85%, black 10%));
+  color: var(--luci-dark); font-weight:700;
+  border-radius:8px; padding:.5rem .8rem;
+}
+
+/* Danger */
+.luci .luci-btn-danger { background: var(--luci-danger); color:#fff; }
+
+/* Small helper for icon-only */
+.luci .luci-btn-icon { padding:.4rem; width:38px; height:38px; }
+
+/* --- Tabs / Navigation --- */
+.luci .tab-btn {
+  background: transparent; border:1px solid transparent; color:var(--luci-muted); padding:.5rem .75rem; border-radius:8px; font-weight:600;
+}
+.luci .tab-btn:hover { background: rgba(15,23,42,0.03); color:var(--luci-dark); }
+.luci .tab-btn.bg-slate-900, .luci .tab-btn.active {
+  background: linear-gradient(180deg,var(--luci-blue), #1e40af); color:#fff !important; border-color: rgba(37,99,235,0.12);
+  box-shadow: 0 8px 22px rgba(37,99,235,0.08);
+}
+
+/* Sidebar placeholder styling if you later add a sidebar */
+.luci .luci-sidebar { width:240px; background:var(--luci-surface); border-right:1px solid var(--card-border); height:100vh; position:fixed; left:0; top:0; padding:1rem; }
+
+/* --- KPI / Dashboard tiles --- */
+.luci [id^="kpi"], .luci .kpi {
+  font-family: var(--title-font);
+}
+.luci .kpi .value { font-size:1.5rem; font-weight:700; color:var(--luci-dark); }
+.luci .kpi .label { font-size:.9rem; color:var(--luci-muted); }
+
+/* Small colored indicators */
+.luci .pos { color:var(--luci-green); font-weight:700; }
+.luci .neg { color:var(--luci-danger); font-weight:700; }
+
+/* --- Inputs / Forms --- */
+.luci input, .luci select, .luci textarea {
+  background: #fff; border:1px solid rgba(15,23,42,0.06); padding:.6rem .7rem; border-radius:8px;
+  font-size: .95rem; color:var(--luci-dark); transition:border var(--transition-fast), box-shadow var(--transition-fast);
+}
+.luci input:focus, .luci select:focus, .luci textarea:focus {
+  border-color: var(--luci-blue); box-shadow: var(--focus-ring);
+}
+.luci input[disabled], .luci textarea[disabled] { opacity: .7; }
+
+/* Input small helper */
+.luci .small { font-size:.82rem; color:var(--luci-muted); }
+
+/* --- Tables --- */
+.luci table { border-collapse: collapse; width:100%; font-size:.95rem; }
+.luci table th, .luci table td { padding:.7rem .6rem; text-align:left; border-bottom:1px solid rgba(15,23,42,0.04); }
+.luci table thead th {
+  background: linear-gradient(180deg, rgba(250,250,250,0.9), rgba(248,249,250,0.9));
+  color:var(--luci-muted); font-weight:600; font-size:.9rem;
+}
+.luci table tbody tr:hover { background: rgba(15,23,42,0.02); }
+.luci table tbody tr:nth-child(even) td { background: transparent; }
+
+/* Stock low highlight (you can add classes in JS later) */
+.luci .stock-low { color: var(--luci-danger); font-weight:700; }
+.luci .stock-ok { color: var(--luci-green); font-weight:700; }
+
+/* Table actions cell */
+.luci .table-actions button { background: transparent; border: 0; color: var(--luci-blue); padding:.25rem; cursor:pointer; }
+.luci .table-actions button:hover { color:color-mix(in srgb, var(--luci-blue) 60%, black 40%); }
+
+/* --- Pagination, pager --- */
+.luci #pagerVentas, .luci #pagerInventory, .luci #pagerEgresos, .luci #pagerIngresos, .luci #pagerMovimientos {
+  display:flex; gap:.5rem; align-items:center; justify-content:flex-end; margin-top:.5rem;
+}
+.luci .pager-btn { padding:.4rem .6rem; border-radius:6px; font-weight:600; background:transparent; border:1px solid rgba(15,23,42,0.04); cursor:pointer; }
+.luci .pager-btn.active { background:var(--luci-blue); color:#fff; }
+
+/* --- Alerts / small notices --- */
+.luci .notice { background: rgba(2,6,23,0.02); border-left:4px solid rgba(37,99,235,0.12); padding:.6rem .8rem; border-radius:6px; color:var(--luci-muted); }
+
+/* --- Small utilities --- */
+.luci .kbd { background: #111827; color:#fff; padding:2px 6px; border-radius:6px; font-size:12px; }
+.luci .hidden { display:none !important; }
+
+/* --- Responsive: mobile-first --- */
+@media (min-width: 768px) {
+  .luci h1 { font-size:1.75rem; }
+  .luci .kpi-grid { display:grid; grid-template-columns: repeat(3,1fr); gap:1rem; }
+}
+@media (min-width: 1024px) {
+  .luci #app { max-width:1100px; margin: 0 auto; }
+}
+
+/* --- Print (optimize invoices/exports for print) --- */
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .luci .bg-white { box-shadow:none !important; border:none !important; }
+  .luci .no-print, .luci button, .luci .tab-btn, .luci .pager-btn { display:none !important; }
+  .luci table th, .luci table td { color: #111; font-size: 11pt; }
+  .luci .luci-brand, .luci .luci-brand-text { display:none; }
+}
+
+/* --- Small polish for charts (canvas background) --- */
+.luci canvas { background:transparent; display:block; max-width:100%; }
+
+/* End of luci.css */

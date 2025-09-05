@@ -1309,7 +1309,7 @@ function renderMovimientosTable(arr) {
   tb.innerHTML = "";
   if (!arr || !arr.length) {
     tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay movimientos en este rango.</td></tr>`;
-    aplicarPaginacion("tbMovimientos", "pagerMovimientos", 15);
+    aplicarPaginacion("tbMovimientos", "pagerMovimientos", 50);
     return;
   }
 
