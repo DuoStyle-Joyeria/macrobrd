@@ -758,7 +758,7 @@ async function deleteSale(ventaId) {
 
       const totalVenta = Number(venta.total || 0);
       const movRef = doc(collection(db, "companies", companyId, "movements"));
-      tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: totalVenta, desc: `Eliminación venta ID ${ventaId}`, saleId: ventaId, createdAt: serverTimestamp() });
+      tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: totalVenta,  categoria: cat, desc: `Eliminación venta ID ${ventaId}`, saleId: ventaId, createdAt: serverTimestamp() });
 
       const newCaja = (Number(balances.cajaEmpresa || 0) - totalVenta);
       if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
@@ -850,19 +850,49 @@ async function exportCollectionToPdf(title, docsArray, columns, filename) {
     doc.setFontSize(16);
     doc.text(title, 14, 20);
     doc.setFontSize(10);
+
+    // Convertir documentos a filas
     const rows = docsArray.map(d => columns.map(c => {
       const v = d[c.key];
       if (c.format === 'money') return money(v);
-      if (c.format === 'date') return (d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString() : (d.fecha || '-'));
+      if (c.format === 'date') {
+        return d.createdAt?.toDate
+          ? d.createdAt.toDate().toLocaleString()
+          : (d.fecha || '-');
+      }
       return v ?? '-';
     }));
-    doc.autoTable({ startY: 30, head: [columns.map(c => c.title)], body: rows });
+
+    // 👉 Calcular total solo si hay una columna money
+    const moneyColIndex = columns.findIndex(c => c.format === 'money');
+    if (moneyColIndex >= 0) {
+      const total = docsArray.reduce((acc, d) => acc + Number(d[columns[moneyColIndex].key] || 0), 0);
+      const totalRow = Array(columns.length).fill("");
+      totalRow[moneyColIndex] = money(total);
+      totalRow[0] = "TOTAL GENERAL";
+      rows.push(totalRow);
+    }
+
+    doc.autoTable({
+      startY: 30,
+      head: [columns.map(c => c.title)],
+      body: rows,
+      didParseCell: function (data) {
+        // Resaltar la última fila (total)
+        if (data.row.index === rows.length - 1 && data.section === "body") {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [240, 240, 240];
+        }
+      }
+    });
+
     doc.save(filename);
   } catch (err) {
     console.error("exportCollectionToPdf error", err);
     alert("Error exportando PDF: " + err.message);
   }
 }
+
 
 /* ======================
    CHARTS
@@ -990,7 +1020,17 @@ async function createEgreso() {
 
       if (pagadoPor === "empresa") {
         const movRef = doc(collection(db, "companies", companyId, "movements"));
-        tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: fechaStr, monto, desc: `Egreso: ${cat} ${desc?('- '+desc):''}`, egresoId: gastoRef.id, createdAt: serverTimestamp() });
+        tx.set(movRef, { 
+  tipo: "egreso", 
+  cuenta: "cajaEmpresa", 
+  fecha: fechaStr, 
+  monto, 
+  categoria: cat,          // 🔥 guardamos categoría en el movimiento
+  desc: `Egreso: ${cat} ${desc?('- '+desc):''}`, 
+  egresoId: gastoRef.id, 
+  createdAt: serverTimestamp() 
+});
+
         const newCaja = oldCaja - monto;
         if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
         else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
@@ -1062,7 +1102,7 @@ async function deleteEgreso(egresoId) {
         else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
 
         const movRef = doc(collection(db, "companies", companyId, "movements"));
-        tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: egreso.monto, desc: `Reversión Egreso ID ${egresoId}`, egresoId, createdAt: serverTimestamp() });
+        tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: egreso.monto, categoria: cat, desc: `Reversión Egreso ID ${egresoId}`, egresoId, createdAt: serverTimestamp() });
       }
 
       tx.delete(egresoRef);
@@ -1105,7 +1145,17 @@ async function createIngreso() {
       tx.set(ingresoRef, { fecha: fechaStr, categoria: cat, monto, descripcion: desc, createdAt: serverTimestamp(), createdBy: currentUser.uid });
 
       const movRef = doc(collection(db, "companies", companyId, "movements"));
-      tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: fechaStr, monto, desc: `Ingreso: ${cat} ${desc?('- '+desc):''}`, ingresoId: ingresoRef.id, createdAt: serverTimestamp() });
+      tx.set(movRef, { 
+  tipo: "ingreso", 
+  cuenta: "cajaEmpresa", 
+  fecha: fechaStr, 
+  monto, 
+  categoria: cat,          // 🔥 guardamos categoría en el movimiento
+  desc: `Ingreso: ${cat} ${desc?('- '+desc):''}`, 
+  ingresoId: ingresoRef.id, 
+  createdAt: serverTimestamp() 
+});
+
       const newCaja = oldCaja + monto;
       if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
       else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
@@ -1168,21 +1218,205 @@ async function loadMovimientos(range = "7d") {
   } catch (err) { console.error("loadMovimientos", err); }
 }
 
+/* ======================
+   MOVIMIENTOS: render + export PDF (reemplazar función existente)
+   ====================== */
+
+// mantengo último listado renderizado para usar al exportar
+let lastMovimientosRendered = [];
+
+/**
+ * Obtiene un texto descriptivo para el movimiento:
+ * - Detecta ventas si tiene saleId
+ * - Detecta gastos si tiene gastoId
+ * - Usa tipo/categoria/desc como fallback
+ */
+function getMovimientoDetalle(mov) {
+  // Si viene de una venta
+  if (mov.saleId) {
+    const canal = mov.canal || mov.channel || '';
+    return canal ? `Venta (${canal})` : `Venta`;
+  }
+
+  // Si es un ingreso manual
+  if (mov.tipo === 'ingreso') {
+    const cat = mov.categoria || extraerCategoriaDesdeDesc(mov.desc) || 'General';
+    return `Ingreso — ${cat}`;
+  }
+
+  // Si es un egreso manual
+  if (mov.tipo === 'egreso') {
+    const cat = mov.categoria || extraerCategoriaDesdeDesc(mov.desc) || 'General';
+    return `Egreso — ${cat}`;
+  }
+
+  // Si es un egreso guardado con gastoId
+  if (mov.gastoId) {
+    const cat = mov.categoria || extraerCategoriaDesdeDesc(mov.desc) || 'Egreso';
+    return `Egreso — ${cat}`;
+  }
+
+  // Si es un ingreso guardado con ingresoId
+  if (mov.ingresoId) {
+    const cat = mov.categoria || extraerCategoriaDesdeDesc(mov.desc) || 'Ingreso';
+    return `Ingreso — ${cat}`;
+  }
+
+  // Fallback
+  return mov.tipo || 'Movimiento';
+}
+
+// Función auxiliar para intentar extraer la categoría desde el campo desc
+function extraerCategoriaDesdeDesc(desc) {
+  if (!desc) return null;
+  // ejemplo: "Ingreso: Ventas adicionales - pago contado"
+  const m = desc.match(/(Ingreso|Egreso|Gasto):\s*([^-\n]+)/i);
+  return m ? m[2].trim() : null;
+}
+
+
+function formatDateForMov(d) {
+  if (!d) return '';
+  const dt = (d?.toDate) ? d.toDate() : (d instanceof Date ? d : new Date(d));
+  return dt.toLocaleString();
+}
+
+
+/**
+ * Reemplaza la función antigua renderMovimientosTable(arr)
+ * Renderiza la tabla y guarda últimos movimientos en lastMovimientosRendered
+ */
+
 function renderMovimientosTable(arr) {
+  lastMovimientosRendered = Array.isArray(arr) ? arr.slice() : [];
+
   const tb = $("#tbMovimientos");
   if (!tb) return;
   tb.innerHTML = "";
-  if (!arr.length) { tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay movimientos en este rango.</td></tr>`; return; }
+  if (!arr || !arr.length) {
+    tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay movimientos en este rango.</td></tr>`;
+    return;
+  }
+
   arr.forEach(m => {
+    const fecha = m.fecha || (m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : '');
+    const detalle = getMovimientoDetalle(m);
+    const cuenta = m.cuenta || "";
+    const monto = money(m.monto || 0);
+    const desc = escapeHtml(m.desc || m.descripcion || "");
+
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${m.fecha || (m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : '')}</td>
-                    <td>${m.tipo}</td>
-                    <td>${m.cuenta}</td>
-                    <td>${money(m.monto)}</td>
-                    <td>${escapeHtml(m.desc || '')}</td>`;
+    tr.innerHTML = `
+      <td>${escapeHtml(fecha)}</td>
+      <td>${escapeHtml(detalle)}</td>
+      <td>${escapeHtml(cuenta)}</td>
+      <td>${monto}</td>
+      <td>${desc}</td>
+    `;
     tb.appendChild(tr);
   });
 }
+
+
+
+/**
+ * Exportar movimientos a PDF usando jsPDF + autoTable.
+ * Si no pasas `movs`, exporta `lastMovimientosRendered`.
+ */
+/**
+ * exportMovimientosToPDF(movs = null, filename = null)
+ * - movs: opcional array de movimientos; si no se pasa, usa lastMovimientosRendered (tu variable global).
+ * - filename: opcional, nombre del archivo PDF.
+ */
+// Reemplaza completamente la función exportMovimientosToPDF existente por esta
+// Reemplaza toda tu función exportMovimientosToPDF por esta
+function exportMovimientosToPDF(movs = null, filename = null) {
+  try {
+    const list = Array.isArray(movs) ? movs : lastMovimientosRendered;
+    if (!list || !list.length) return alert("No hay movimientos para exportar.");
+
+    const { jsPDF } = window.jspdf || {};
+    if (!jsPDF) {
+      alert("jsPDF no está cargado. Añade el script de jsPDF en el HTML.");
+      return;
+    }
+
+    // Determinar rango de fechas (para título / nombre de archivo)
+    const dates = list.map(m => {
+      const d = m.createdAt?.toDate ? m.createdAt.toDate() : (m.fecha ? new Date(m.fecha) : null);
+      return (d instanceof Date && !isNaN(d)) ? d : null;
+    }).filter(Boolean);
+
+    const minDate = dates.length ? new Date(Math.min(...dates.map(d => d.getTime()))) : new Date();
+    const maxDate = dates.length ? new Date(Math.max(...dates.map(d => d.getTime()))) : new Date();
+    const startLabel = minDate.toISOString().slice(0,10);
+    const endLabel = maxDate.toISOString().slice(0,10);
+
+    // Crear documento
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    doc.setFontSize(14);
+    doc.text(`Movimientos ${startLabel} → ${endLabel}`, 40, 40);
+
+    // Construir filas y total neto
+    const rows = [];
+    let totalNet = 0;
+    for (const mov of list) {
+      const fecha = mov.fecha || (mov.createdAt?.toDate ? mov.createdAt.toDate().toLocaleString() : '');
+      const detalle = String(getMovimientoDetalle(mov) || '').replace(/\s+/g,' ').trim();
+      const cuenta = mov.cuenta || '';
+      const montoNum = Number(mov.monto || 0);
+      const montoStr = (mov.tipo === 'egreso' ? `-${money(montoNum)}` : money(montoNum));
+      totalNet += (mov.tipo === 'egreso' ? -montoNum : montoNum);
+
+      // 👇 Aquí ya no metemos columna "tipo", solo detalle
+      rows.push([ fecha, detalle, cuenta, montoStr ]);
+    }
+
+    // Añadir fila final TOTAL GENERAL
+    rows.push([ '', 'TOTAL GENERAL', '', money(totalNet) ]);
+
+    // Generar tabla con autoTable
+    doc.autoTable({
+      startY: 70,
+      head: [['Fecha','Detalle','Cuenta','Monto']],
+      body: rows,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [14,78,94], textColor: 255, halign: 'center' },
+      columnStyles: {
+        0: { cellWidth: 110 }, // fecha
+        1: { cellWidth: 250 }, // detalle
+        2: { cellWidth: 120 }, // cuenta
+        3: { cellWidth: 80, halign: 'right' } // monto
+      },
+      didParseCell: function (data) {
+        if (data.section === 'body' && data.row.index === rows.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+        }
+      },
+      margin: { left: 40, right: 40 }
+    });
+
+    // Nombre de archivo por defecto
+    const fname = filename || `movimientos_${startLabel}_${endLabel}.pdf`;
+    doc.save(fname);
+
+  } catch (err) {
+    console.error("exportMovimientosToPDF error:", err);
+    alert("Error exportando Movimientos a PDF: " + (err.message || err));
+  }
+}
+
+
+
+
+/* Hook para botón de export (si lo agregas al HTML) */
+document.addEventListener("click", (ev) => {
+  if (ev.target && ev.target.id === "btnExportMovimientosPDF") {
+    exportMovimientosToPDF();
+  }
+});
+
+
 
 /* quick mov buttons */
 document.addEventListener("click", (ev) => {
