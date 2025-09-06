@@ -95,17 +95,18 @@
 
     <!-- APP PRINCIPAL -->
     <div id="mainView" class="hidden">
-      <div class="flex items-center justify-between mt-4">
+      <!-- Header (mejorado para mobile) -->
+      <div class="header-user flex items-center justify-between mt-4">
         <div class="flex items-center gap-3">
           <!-- Logo pequeño en el header (acompaña el titulo) -->
           <img src="assets/logo luci.png" alt="Luci logo" class="w-10 h-10 rounded-md" style="object-fit:contain;" />
           <div>
-            <!-- Saludo humanizado: dejar #companyName para que JS lo rellene -->
             <h1 class="text-2xl font-bold">¡Bienvenido de nuevo, <span id="companyName">Empresa</span>!</h1>
             <p id="userRole" class="text-sm text-slate-500 mt-1"></p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+
+        <div class="actions flex items-center gap-2">
           <button id="btnPerfil" class="px-3 py-2 rounded border luci-btn-ghost">Perfil</button>
           <button id="btnLogout" class="px-3 py-2 rounded bg-slate-900 text-white luci-btn-primary">Salir</button>
         </div>
@@ -172,10 +173,13 @@
               </div>
 
               <div id="cartContainer" class="mt-3">
-                <table class="w-full" id="cartTable">
-                  <thead class="text-left"><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th></th></tr></thead>
-                  <tbody id="cartBody"></tbody>
-                </table>
+                <!-- Envolvemos la tabla para control responsive -->
+                <div class="table-responsive">
+                  <table class="w-full" id="cartTable">
+                    <thead class="text-left"><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th></th></tr></thead>
+                    <tbody id="cartBody"></tbody>
+                  </table>
+                </div>
 
                 <div class="flex gap-2 mt-3">
                   <button id="btnAddCartLine" class="px-3 py-2 bg-slate-900 text-white rounded luci-btn-primary">Agregar artículo</button>
@@ -202,15 +206,14 @@
 
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Historial de Ventas</h3>
-              <table class="w-full text-sm">
-                <thead class="text-left"><tr><th>Fecha</th><th>Cliente</th><th>Total</th><th>Items</th><th>Acciones</th></tr></thead>
-                <tbody id="tbVentas"></tbody>
-                <table>
-  <tbody id="tbVentas"></tbody>
-</table>
-<div id="pagerVentas" class="mt-2"></div>
-
-              </table>
+              <!-- Table wrapper para responsive->cards en móvil -->
+              <div class="table-responsive">
+                <table class="w-full text-sm" id="tableVentas">
+                  <thead class="text-left"><tr><th>Fecha</th><th>Cliente</th><th>Total</th><th>Items</th><th>Acciones</th></tr></thead>
+                  <tbody id="tbVentas"></tbody>
+                </table>
+              </div>
+              <div id="pagerVentas" class="mt-2"></div>
             </div>
           </div>
         </section>
@@ -243,13 +246,13 @@
 
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Inventario</h3>
-              <table class="w-full text-sm">
-                <thead class="text-left"><tr><th>Nombre</th><th>Attrs</th><th>Precio</th><th>Stock</th><th>Acciones</th></tr></thead>
-                <tbody id="tbInventory"></tbody>
-</table>
-<div id="pagerInventory" class="mt-2"></div>
-
-              </table>
+              <div class="table-responsive">
+                <table class="w-full text-sm" id="tableInventory">
+                  <thead class="text-left"><tr><th>Nombre</th><th>Attrs</th><th>Precio</th><th>Stock</th><th>Acciones</th></tr></thead>
+                  <tbody id="tbInventory"></tbody>
+                </table>
+              </div>
+              <div id="pagerInventory" class="mt-2"></div>
             </div>
           </div>
         </section>
@@ -259,8 +262,7 @@
           <div class="grid md:grid-cols-2 gap-4">
             <form id="formEgreso" class="bg-white p-4 rounded shadow space-y-2">
               <h3 class="font-semibold text-lg">Registrar Egreso</h3>
-              <h3 class="font-semibold text-lg">Fecha</h3>
-              <input type="date" id="egresoFecha" placeholder="Fecha" required class="w-full border rounded p-2">
+              <input type="date" id="egresoFecha" required class="w-full border rounded p-2">
               <input type="text" id="egresoCat" placeholder="Categoría" required class="w-full border rounded p-2">
               <input type="number" id="egresoMonto" placeholder="Monto" step="0.01" min="0" required class="w-full border rounded p-2">
               <input type="text" id="egresoDesc" placeholder="Descripción" class="w-full border rounded p-2">
@@ -274,13 +276,13 @@
 
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Historial de Egresos</h3>
-              <table class="w-full text-sm">
-                <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th><th>Acciones</th></tr></thead>
-                
-                <tbody id="tbEgresos"></tbody></table>
-                <div id="pagerEgresos" class="mt-2"></div>
-
-              
+              <div class="table-responsive">
+                <table class="w-full text-sm" id="tableEgresos">
+                  <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th><th>Acciones</th></tr></thead>
+                  <tbody id="tbEgresos"></tbody>
+                </table>
+              </div>
+              <div id="pagerEgresos" class="mt-2"></div>
             </div>
           </div>
         </section>
@@ -290,7 +292,7 @@
           <div class="grid md:grid-cols-2 gap-4">
             <form id="formIngreso" class="bg-white p-4 rounded shadow space-y-2">
               <h3 class="font-semibold text-lg">Registrar Ingreso</h3>
-              <input type="date" id="ingresoFecha" placeholder="Fecha" required class="w-full border rounded p-2">
+              <input type="date" id="ingresoFecha"  required class="w-full border rounded p-2">
               <input type="text" id="ingresoCat" placeholder="Categoria / Fuente" required class="w-full border rounded p-2">
               <input type="number" id="ingresoMonto" placeholder="Monto" step="0.01" min="0" required class="w-full border rounded p-2">
               <input type="text" id="ingresoDesc" placeholder="Descripción" class="w-full border rounded p-2">
@@ -300,11 +302,13 @@
 
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Historial de Ingresos</h3>
-              <table class="w-full text-sm">
-                <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th></tr></thead>
-                <tbody id="tbIngresos"></tbody></table>
-                <div id="pagerIngresos" class="mt-2"></div>
-              </table>
+              <div class="table-responsive">
+                <table class="w-full text-sm" id="tableIngresos">
+                  <thead class="text-left"><tr><th>Fecha</th><th>Categoria</th><th>Monto</th><th>Desc</th></tr></thead>
+                  <tbody id="tbIngresos"></tbody>
+                </table>
+              </div>
+              <div id="pagerIngresos" class="mt-2"></div>
             </div>
           </div>
         </section>
@@ -320,16 +324,13 @@
                 <button id="btnMov30d" class="px-2 py-1 border rounded mr-1">30 días</button>
                 <button id="btnExportMovimientosRange" class="px-2 py-1 bg-slate-800 text-white rounded">Exportar movimientos (rango)</button>
               </div>
-              <table class="w-full text-sm">
-                <thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Monto</th><th>Desc</th></tr></thead>
-                <tbody id="tbMovimientos"></tbody>
-                <table>
-  <tbody id="tbMovimientos"></tbody>
-</table>
-<div id="pagerMovimientos" class="mt-2"></div>
-
-
-              </table>
+              <div class="table-responsive">
+                <table class="w-full text-sm" id="tableMovimientos">
+                  <thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Monto</th><th>Desc</th></tr></thead>
+                  <tbody id="tbMovimientos"></tbody>
+                </table>
+              </div>
+              <div id="pagerMovimientos" class="mt-2"></div>
             </div>
           </div>
         </section>
@@ -364,10 +365,12 @@
             <!-- Empleados -->
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Empleados</h3>
-              <table class="w-full text-sm">
-                <thead class="text-left"><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
-                <tbody id="tbEmployees"></tbody>
-              </table>
+              <div class="table-responsive">
+                <table class="w-full text-sm" id="tableEmployees">
+                  <thead class="text-left"><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
+                  <tbody id="tbEmployees"></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </section>
@@ -389,22 +392,15 @@
   <!-- Llamamos al JS principal que contiene toda la lógica (NO MODIFICADO) -->
   <script type="module" src="js/app.js"></script>
 
-  <!-- ===== Script de notificaciones (NO modifica js/app.js) =====
-       - Intercepta alert() y lo muestra como toast.
-       - Observa cambios en tablas clave para notificar automáticamente.
-       - Añade toasts informativos cuando el usuario pulsa botones de acción.
-       - Pega este bloque justo después de app.js
-  -->
+  <!-- ===== Script de notificaciones y hooks Luci (NO modifica js/app.js) ===== -->
   <script>
   (function(){
-    // --- configuración ---
     const TOAST_CONTAINER_ID = 'luci-toasts';
-    const DEFAULT_DURATION = 3200; // ms
+    const DEFAULT_DURATION = 3200;
 
-    // crea/obtiene contenedor
     function ensureContainer(){
       let container = document.getElementById(TOAST_CONTAINER_ID);
-      if (!container){
+      if (!container) {
         container = document.createElement('div');
         container.id = TOAST_CONTAINER_ID;
         container.className = 'luci-toasts';
@@ -415,15 +411,14 @@
       return container;
     }
 
-    // escapar texto simple para evitar inyección accidental
     function esc(s){ return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-    // mostrar toast
     function showLuciToast(message, type='success', options={}){
       const dur = options.duration || DEFAULT_DURATION;
       const container = ensureContainer();
       const toast = document.createElement('div');
       toast.className = 'luci-toast ' + (type || 'success');
+      toast.setAttribute('role','status');
       toast.innerHTML = `
         <div class="luci-toast-body" style="display:flex;gap:.6rem;align-items:center;">
           <div class="luci-toast-icon" aria-hidden="true" style="font-size:18px;">
@@ -435,7 +430,7 @@
       `;
       container.appendChild(toast);
 
-      // small delay to allow CSS transitions
+      // Forzar animación
       requestAnimationFrame(()=> toast.classList.add('show'));
 
       const remove = () => {
@@ -455,46 +450,47 @@
       return { remove, element: toast };
     }
 
-    // Intercepta alert() para mostrar toast en su lugar
+    // Intercepta alert() y lo transforma en toast (no bloqueante)
     (function overrideAlert(){
       try {
         const nativeAlert = window.alert;
         window.alert = function(msg){
-          // mostramos toast; no bloqueamos con alert nativo
-          try {
-            showLuciToast(msg ?? 'Notificación', 'success', { duration: 2800 });
-          } catch(e){}
-          // si quieres mantener nativeAlert descomenta la siguiente línea:
-          // nativeAlert(msg);
+          try { showLuciToast(msg ?? 'Notificación', 'info', { duration: 2800 }); } catch(e){}
         };
       } catch(e) { console.warn('Luci toast: no se pudo sobrescribir alert()', e); }
     })();
 
-    // Observador para tablas: si se añade una fila nueva, mostramos toast correspondiente.
-    const TABLE_MAP = {
-  tbVentas: 'Hola, soy Luci 👋 Acabo de registrar tu venta exitosamente.',
-  tbInventory: 'He actualizado el inventario con los cambios que acabas de hacer.',
-  tbEgresos: 'He anotado tu egreso, todo está bajo control.',
-  tbIngresos: 'Tu ingreso fue registrado, ¡así crece tu negocio 🚀!',
-  tbMovimientos: 'He registrado el movimiento en tu sistema.'
-};
+    // Hooks humanizados de Luci (usables desde app.js si lo deseas)
+    window.luciEvents = {
+      venta: () => showLuciToast('Hola, soy Luci 👋 Acabo de registrar tu venta exitosamente.', 'success'),
+      inventario: () => showLuciToast('He actualizado el inventario con los cambios que acabas de hacer.', 'info'),
+      ingreso: () => showLuciToast('Tu ingreso fue registrado, ¡así crece tu negocio 🚀!', 'success'),
+      egreso: () => showLuciToast('He anotado tu egreso, todo está bajo control.', 'warn'),
+      pdf: () => showLuciToast('He registrado todos los datos y descargado tu PDF exitosamente.', 'success'),
+      eliminado: () => showLuciToast('He eliminado ese registro de tu sistema, tranquilo que ya no está.', 'error')
+    };
 
-
-    // Setup: ejecutar después de que app.js haya inicializado DOM
+    // Observadores y listeners
     function setupObserversAndButtons(){
-      // Observers
+      // Tabla -> mensaje (con baseline para evitar notificar carga inicial)
+      const TABLE_MAP = {
+        tbVentas: () => window.luciEvents.venta(),
+        tbInventory: () => window.luciEvents.inventario(),
+        tbEgresos: () => window.luciEvents.egreso(),
+        tbIngresos: () => window.luciEvents.ingreso(),
+        tbMovimientos: () => showLuciToast('He registrado el movimiento en tu sistema.', 'info')
+      };
+
       Object.keys(TABLE_MAP).forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-        // baseline — número actual de filas/elementos
-        let baseline = el.children.length;
+        let baseline = el.children.length || 0;
         const mo = new MutationObserver(mutations => {
-          for (const m of mutations){
-            if (m.addedNodes && m.addedNodes.length > 0){
-              // solo notificamos si el número aumentó respecto a baseline (evita notificar por re-render inicial)
-              const nowCount = el.children.length;
-              if (nowCount > baseline){
-                showLuciToast(TABLE_MAP[id], 'success');
+          for (const m of mutations) {
+            if (m.addedNodes && m.addedNodes.length > 0) {
+              const nowCount = el.children.length || 0;
+              if (nowCount > baseline) {
+                try { TABLE_MAP[id](); } catch(e){}
               }
               baseline = nowCount;
             }
@@ -503,35 +499,59 @@
         mo.observe(el, { childList: true, subtree: false });
       });
 
-      // Botones que normalmente inician acciones — feedback inmediato
+      // Botones con mensajes inmediatos y PDFs
       const BUTTONS_INFO = {
-  btnSubmitSale: 'Estoy registrando tu venta, dame un momento ⏳…',
-  btnSaveEgreso: 'Estoy guardando tu egreso 💸…',
-  btnSaveIngreso: 'Estoy guardando tu ingreso 💰…',
-  btnCreateProduct: 'Estoy creando el nuevo producto 📦…',
-  btnAddCartLine: 'Estoy agregando un artículo al carrito 🛒…'
-};
+        btnSubmitSale: 'Estoy registrando tu venta, dame un momento ⏳…',
+        btnSaveEgreso: 'Estoy guardando tu egreso 💸…',
+        btnSaveIngreso: 'Estoy guardando tu ingreso 💰…',
+        btnCreateProduct: 'Estoy creando el nuevo producto 📦…',
+        btnAddCartLine: 'Estoy agregando un artículo al carrito 🛒…',
+
+        /* export PDF buttons (mensaje inicial) */
+        btnExportSalesRange: 'Estoy generando el PDF de tus ventas 📑…',
+        btnExportEgresosRange: 'Estoy generando el PDF de tus egresos 📑…',
+        btnExportIngresosRange: 'Estoy generando el PDF de tus ingresos 📑…',
+        btnExportMovimientosRange: 'Estoy generando el PDF de tus movimientos 📑…'
+      };
 
       Object.keys(BUTTONS_INFO).forEach(btnId => {
         const b = document.getElementById(btnId);
         if (!b) return;
         b.addEventListener('click', () => {
-          // toast temporal informativo (no cierra hasta 1.2s)
-          showLuciToast(BUTTONS_INFO[btnId], 'info', { duration: 1200 });
+          showLuciToast(BUTTONS_INFO[btnId], 'info', { duration: 1400 });
+
+          // Si es export PDF: mostrar confirmación final unos ms después
+          if (btnId.startsWith('btnExport')) {
+            setTimeout(() => {
+              window.luciEvents.pdf();
+            }, 900);
+          }
         }, { passive: true });
+      });
+
+      // Además: enganchamos enlaces o botones con atributo data-download para detectar descargas dinámicas
+      // (esto cubre casos donde la descarga ocurre via link con download o se dispara desde app.js)
+      document.addEventListener('click', (e) => {
+        const t = e.target.closest('[data-luci-pdf]');
+        if (!t) return;
+        // mensaje inicial y confirmación posterior
+        showLuciToast('Estoy generando tu PDF 📑…', 'info', { duration: 1200 });
+        setTimeout(()=> window.luciEvents.pdf(), 900);
       });
     }
 
-    // Ejecutar setup después de que app.js se ejecute y renderice la UI.
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(setupObserversAndButtons, 120);
-    } else {
-      window.addEventListener('DOMContentLoaded', () => setTimeout(setupObserversAndButtons, 120));
+    // Ejecuta setup con pequeño delay para evitar notificar carga inicial de tablas
+    function runSetupAfterLoad(){
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(setupObserversAndButtons, 600));
+      } else {
+        setTimeout(setupObserversAndButtons, 600);
+      }
     }
+    runSetupAfterLoad();
 
-    // Exponer función global por si quieres invocarla manualmente desde la consola o tu JS
+    // Exponer util
     window.showLuciToast = showLuciToast;
-
   })();
   </script>
 
