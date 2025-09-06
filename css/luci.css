@@ -1,10 +1,9 @@
 /* css/luci.css
    Luci — identidad visual final (humanizada)
-   Reemplaza completamente el archivo anterior con este.
 */
 
 /* --- Fuentes --- */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Open+Sans:wght@400;600;display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Open+Sans:wght@400;600&display=swap');
 
 :root{
   --luci-blue: #2563EB;
@@ -23,7 +22,6 @@
   --transition-fast: 180ms cubic-bezier(.2,.9,.2,1);
 }
 
-/* Scope: apply styles only when body has class .luci */
 body.luci {
   font-family: "Open Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   background: var(--luci-bg);
@@ -43,7 +41,7 @@ body.luci {
 .luci h2 { font-size: 1.125rem; font-weight:600; }
 .luci h3 { font-size: 1rem; font-weight:600; }
 
-/* Generic card style (override Tailwind .bg-white to unify look) */
+/* Cards */
 .luci .bg-white {
   background: var(--luci-surface) !important;
   border-radius: var(--radius-soft) !important;
@@ -51,7 +49,7 @@ body.luci {
   border: 1px solid var(--card-border);
 }
 
-/* Buttons and CTAs */
+/* Buttons */
 .luci .luci-btn-primary, .luci button.bg-slate-900, .luci .bg-slate-900 {
   background: linear-gradient(180deg,var(--luci-blue), #1e40af);
   color:#fff !important;
@@ -70,7 +68,6 @@ body.luci {
 }
 .luci .luci-btn-ghost:hover { background: rgba(15,23,42,0.03); }
 
-/* Success badge */
 .luci .luci-badge-success {
   background: rgba(16,185,129,0.12);
   color: var(--luci-green);
@@ -79,7 +76,7 @@ body.luci {
   font-weight:700;
 }
 
-/* Inputs / forms */
+/* Inputs */
 .luci input, .luci select, .luci textarea {
   background: #fff; border:1px solid rgba(15,23,42,0.06); padding:.6rem .7rem; border-radius:8px;
   font-size: .95rem; color:var(--luci-dark); transition:border var(--transition-fast), box-shadow var(--transition-fast);
@@ -101,7 +98,6 @@ body.luci {
 .luci .kpi { font-family: "Montserrat", sans-serif; }
 .luci .kpi .value { font-size:1.5rem; font-weight:700; color:var(--luci-dark); }
 
-/* Small helpers */
 .luci .small { font-size:.82rem; color:var(--luci-muted); }
 .luci .kbd { background: #111827; color:#fff; padding:2px 6px; border-radius:6px; font-size:12px; }
 
@@ -118,10 +114,7 @@ body.luci {
   white-space: nowrap;
 }
 
-/* ===== WELCOME OVERLAY (login) =====
-   - Animation reduced to 1.5s (user requested shorter)
-   - Uses a hidden checkbox to dismiss (no JS)
-*/
+/* Welcome overlay */
 .luci .luci-hidden-checkbox { position: absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden; opacity:0; pointer-events:none; }
 
 .luci .luci-welcome-overlay {
@@ -142,7 +135,6 @@ body.luci {
   animation: luci-welcome-fade 1.5s cubic-bezier(.2,.9,.2,1) 1;
   animation-fill-mode: forwards;
 }
-
 .luci #luci-welcome-toggle:checked ~ .luci-welcome-overlay { opacity: 0 !important; visibility:hidden !important; pointer-events:none; transform: translateY(-8px); }
 
 .luci .luci-welcome-overlay img { width: 140px; height:140px; border-radius:12px; object-fit:contain; box-shadow: 0 8px 30px rgba(15,23,42,0.08); }
@@ -164,12 +156,7 @@ body.luci {
   100% { opacity: 0; transform: scale(.98) translateY(-8px); visibility:hidden; }
 }
 
-/* If user prefers reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .luci .luci-welcome-overlay { animation:none; }
-}
-
-/* ===== Minimal Assist Message (we removed the big card as requested) ===== */
+/* Assist message */
 .luci-message {
   background: linear-gradient(180deg, rgba(37,99,235,0.04), rgba(255,255,255,0.6));
   border-left: 4px solid rgba(37,99,235,0.12);
@@ -181,7 +168,7 @@ body.luci {
   margin-bottom:.6rem;
 }
 
-/* ===== Toasts / notifications (base) ===== */
+/* Toasts / notifications (base) */
 .luci .luci-toasts {
   position: fixed;
   right: 16px;
@@ -210,20 +197,19 @@ body.luci {
 }
 .luci .luci-toast.show { opacity:1; transform: translateY(0); }
 .luci .luci-toast.success { border-left:4px solid var(--luci-green); }
-.luci .luci-toast.warn { border-left:4px solid var(--luci-yellow); }
-.luci .luci-toast.error { border-left:4px solid var(--luci-danger); }
+.luci .luci-toast.warn { border-left:4px solid var(--luci-yellow); color:var(--luci-dark); }
+.luci .luci-toast.error { border-left:4px solid var(--luci-danger); color:var(--luci-dark); }
 .luci .luci-toast .title { font-weight:700; color:var(--luci-dark); }
 .luci .luci-toast .message { color:var(--luci-muted); font-size:.92rem; }
 .luci .luci-toast .close { margin-left:auto; background:transparent; border:0; color:var(--luci-muted); cursor:pointer; }
 
-/* Print rules */
+/* Print */
 @media print {
   .luci .luci-welcome-overlay, .luci .luci-toasts, .luci button, .luci .tab-btn, .luci .pager-btn { display:none !important; }
   .luci .bg-white { box-shadow:none !important; border:none !important; }
 }
 
-/* Responsive tweaks (mobile-first) */
-/* Table wrapper that will switch tables to 'cards' on narrow screens */
+/* Responsive: tables -> cards in mobile */
 .table-responsive { width:100%; overflow:hidden; }
 
 /* Desktop: normal tables */
@@ -256,26 +242,37 @@ body.luci {
     font-size: .95rem;
   }
 
-  /* Labels on the left (static) */
   .table-responsive tbody tr td:first-child {
     font-weight:700;
     color:var(--luci-dark);
   }
 
-  /* Make action buttons smaller / stacked */
   .table-responsive tbody tr td .btn, .table-responsive tbody tr td button {
     padding: .35rem .5rem;
     font-size: .85rem;
   }
 
-  /* For cart rows we want product label first and meta below */
-  #cartTable tbody tr td { align-items:center; }
+  /* CART: put Cant & Precio in same row when possible */
+  #cartTable tbody tr td:nth-child(2),
+  #cartTable tbody tr td:nth-child(3) {
+    display: inline-flex;
+    gap: .5rem;
+    width: 100%;
+  }
+
+  /* Make first column (product) full width on mobile */
+  #cartTable tbody tr td:first-child { width: 100%; display:block; padding-bottom:.5rem; font-weight:600; }
+
+  /* Subtotal row style */
+  #cartTable tbody tr td:nth-child(4) { color:var(--luci-dark); font-weight:700; }
+
+  /* Ensure delete button sits alone in last cell */
+  #cartTable tbody tr td:last-child { display:flex; justify-content:flex-end; }
 }
 
-/* Header layout adjustments for mobile */
+/* Header adjustments mobile */
 .header-user { gap: .6rem; }
 .header-user .actions { gap: .4rem; }
-
 @media (max-width: 640px) {
   .header-user { flex-direction: column; align-items: flex-start; gap: .5rem; }
   .header-user h1 { font-size: 1.05rem; font-weight:700; }
@@ -283,18 +280,15 @@ body.luci {
   .header-user img { width:40px; height:40px; }
 }
 
-/* Tiny polish for canvases/charts */
-.luci canvas { background:transparent; display:block; max-width:100%; }
-
-/* Small utility */
-.hidden { display:none !important; }
-
-/* Toast color scheme fallback and compact style for mobile */
+/* Toast compact for narrow devices */
 @media (max-width: 480px) {
   .luci .luci-toasts { right: 8px; left: 8px; width: auto; }
 }
 
-/* Extra humanized small typography */
+/* Small typography tweaks for toast text */
 .luci .luci-toast .luci-toast-text { font-weight:600; line-height:1.2; }
 
-/* End of css/luci.css */
+/* Utility hidden */
+.hidden { display:none !important; }
+
+/* End of luci.css */
