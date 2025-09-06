@@ -98,6 +98,7 @@
       <!-- Header (mejorado para mobile) -->
       <div class="header-user flex items-center justify-between mt-4">
         <div class="flex items-center gap-3">
+          <!-- Logo pequeño en el header (acompaña el titulo) -->
           <img src="assets/logo luci.png" alt="Luci logo" class="w-10 h-10 rounded-md" style="object-fit:contain;" />
           <div>
             <h1 class="text-2xl font-bold">¡Bienvenido de nuevo, <span id="companyName">Empresa</span>!</h1>
@@ -111,7 +112,7 @@
         </div>
       </div>
 
-      <!-- Mensaje de bienvenida corto -->
+      <!-- Mensaje de bienvenida corto (texto, no tarjeta grande) -->
       <div class="mt-4 luci-message" aria-live="polite">
         <strong>Hola 👋 soy Luci</strong>. Estoy lista para ayudarte a organizar tus ventas, inventario y finanzas de hoy.
       </div>
@@ -155,6 +156,7 @@
           <button data-tab="ingresos" class="tab-btn px-3 py-2 rounded border">Ingresos</button>
           <button data-tab="movimientos" class="tab-btn px-3 py-2 rounded border">Movimientos</button>
           <button data-tab="estadisticas" class="tab-btn px-3 py-2 rounded border">Estadísticas</button>
+          <!-- Solo admin -->
           <button data-tab="usuarios" class="tab-btn px-3 py-2 rounded border">Usuarios</button>
         </div>
 
@@ -164,10 +166,14 @@
             <div class="bg-white p-4 rounded shadow">
               <h3 class="font-semibold text-lg">POS — Registrar Venta</h3>
 
-              <!-- Eliminé el buscador local (ya tienes buscador global) -->
+              <!-- Buscador avanzado -->
+              <div class="mb-4">
+                <input id="posSearchInput" type="text" placeholder="Buscar producto por nombre, color, talla, equipo..." class="border rounded p-2 w-full" />
+                <div id="posSearchResults" class="border rounded bg-white mt-1 hidden max-h-60 overflow-y-auto"></div>
+              </div>
 
               <div id="cartContainer" class="mt-3">
-                <!-- wrapper responsive para tabla/cart -->
+                <!-- Envolvemos la tabla para control responsive -->
                 <div class="table-responsive">
                   <table class="w-full" id="cartTable">
                     <thead class="text-left"><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th></th></tr></thead>
@@ -193,13 +199,14 @@
                   <div class="text-sm">Total</div>
                   <div id="cartTotal" class="text-2xl font-semibold">$0</div>
                   <button id="btnSubmitSale" class="mt-3 w-full bg-emerald-600 text-white py-2 rounded luci-badge-success">Confirmar venta</button>
-                  <button id="btnExportSalesRange" class="mt-2 w-full bg-slate-800 text-white py-1 rounded" data-luci-pdf>Exportar ventas (rango)</button>
+                  <button id="btnExportSalesRange" class="mt-2 w-full bg-slate-800 text-white py-1 rounded">Exportar ventas (rango)</button>
                 </div>
               </div>
             </div>
 
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Historial de Ventas</h3>
+              <!-- Table wrapper para responsive->cards en móvil -->
               <div class="table-responsive">
                 <table class="w-full text-sm" id="tableVentas">
                   <thead class="text-left"><tr><th>Fecha</th><th>Cliente</th><th>Total</th><th>Items</th><th>Acciones</th></tr></thead>
@@ -264,7 +271,7 @@
                 <option value="otro">Otro</option>
               </select>
               <button id="btnSaveEgreso" class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Egreso</button>
-              <button id="btnExportEgresosRange" class="w-full mt-2 bg-slate-800 text-white py-2 rounded" data-luci-pdf>Exportar egresos (rango)</button>
+              <button id="btnExportEgresosRange" class="w-full mt-2 bg-slate-800 text-white py-2 rounded">Exportar egresos (rango)</button>
             </form>
 
             <div class="bg-white p-4 rounded shadow overflow-auto">
@@ -290,7 +297,7 @@
               <input type="number" id="ingresoMonto" placeholder="Monto" step="0.01" min="0" required class="w-full border rounded p-2">
               <input type="text" id="ingresoDesc" placeholder="Descripción" class="w-full border rounded p-2">
               <button id="btnSaveIngreso" class="w-full bg-emerald-600 text-white py-2 rounded">Guardar Ingreso</button>
-              <button id="btnExportIngresosRange" class="w-full mt-2 bg-slate-800 text-white py-2 rounded" data-luci-pdf>Exportar ingresos (rango)</button>
+              <button id="btnExportIngresosRange" class="w-full mt-2 bg-slate-800 text-white py-2 rounded">Exportar ingresos (rango)</button>
             </form>
 
             <div class="bg-white p-4 rounded shadow overflow-auto">
@@ -315,7 +322,7 @@
                 <button id="btnMovHoy" class="px-2 py-1 border rounded mr-1">Hoy</button>
                 <button id="btnMov7d" class="px-2 py-1 border rounded mr-1">7 días</button>
                 <button id="btnMov30d" class="px-2 py-1 border rounded mr-1">30 días</button>
-                <button id="btnExportMovimientosRange" class="px-2 py-1 bg-slate-800 text-white rounded" data-luci-pdf>Exportar movimientos (rango)</button>
+                <button id="btnExportMovimientosRange" class="px-2 py-1 bg-slate-800 text-white rounded">Exportar movimientos (rango)</button>
               </div>
               <div class="table-responsive">
                 <table class="w-full text-sm" id="tableMovimientos">
@@ -339,11 +346,13 @@
         <!-- USUARIOS (solo Admin) -->
         <section id="tab-usuarios" class="tab hidden mt-4">
           <div class="grid md:grid-cols-2 gap-4">
+            <!-- Crear empleado -->
             <div class="bg-white p-4 rounded shadow space-y-2">
               <h3 class="font-semibold text-lg">Crear Empleado (desde admin)</h3>
               <div class="text-sm text-slate-600">Código de Empresa: <span id="companyIdLabel" class="font-mono bg-slate-100 px-2 py-1 rounded"></span></div>
               <input id="invName" type="text" placeholder="Nombre del empleado" class="w-full border rounded p-2">
               <input id="invEmail" type="email" placeholder="Email del empleado (requerido)" class="w-full border rounded p-2">
+              <!-- IMPORTANTE: id esperado por tu JS -->
               <input id="invPass" type="password" placeholder="Contraseña (requerida)" class="w-full border rounded p-2">
               <select id="invRole" class="w-full border rounded p-2">
                 <option value="empleado">Empleado</option>
@@ -353,6 +362,7 @@
               <p class="text-xs text-slate-500">El administrador define correo y contraseña; el empleado podrá iniciar sesión con esos datos.</p>
             </div>
 
+            <!-- Empleados -->
             <div class="bg-white p-4 rounded shadow overflow-auto">
               <h3 class="font-semibold text-lg mb-2">Empleados</h3>
               <div class="table-responsive">
@@ -425,20 +435,22 @@
 
       const remove = () => {
         toast.classList.remove('show');
-        setTimeout(()=> { try{ toast.remove(); } catch(e){} }, 300);
+        setTimeout(()=> { try{ toast.remove(); } catch(e){} }, 260);
       };
 
       // close button
       const btn = toast.querySelector('.close');
       if (btn) btn.addEventListener('click', remove);
 
+      // auto remove
       if (!options.permanent) {
         setTimeout(remove, dur);
       }
+
       return { remove, element: toast };
     }
 
-    // override alert -> toast
+    // Intercepta alert() y lo transforma en toast (no bloqueante)
     (function overrideAlert(){
       try {
         const nativeAlert = window.alert;
@@ -448,7 +460,7 @@
       } catch(e) { console.warn('Luci toast: no se pudo sobrescribir alert()', e); }
     })();
 
-    // humanized hooks
+    // Hooks humanizados de Luci (usables desde app.js si lo deseas)
     window.luciEvents = {
       venta: () => showLuciToast('Hola, soy Luci 👋 Acabo de registrar tu venta exitosamente.', 'success'),
       inventario: () => showLuciToast('He actualizado el inventario con los cambios que acabas de hacer.', 'info'),
@@ -458,9 +470,9 @@
       eliminado: () => showLuciToast('He eliminado ese registro de tu sistema, tranquilo que ya no está.', 'error')
     };
 
-    // Setup observers & buttons
+    // Observadores y listeners
     function setupObserversAndButtons(){
-      // TABLE -> messages (baseline to avoid notifications on initial load)
+      // Tabla -> mensaje (con baseline para evitar notificar carga inicial)
       const TABLE_MAP = {
         tbVentas: () => window.luciEvents.venta(),
         tbInventory: () => window.luciEvents.inventario(),
@@ -487,13 +499,15 @@
         mo.observe(el, { childList: true, subtree: false });
       });
 
-      // Buttons immediate info + PDF export buttons -> initial + final confirmation
+      // Botones con mensajes inmediatos y PDFs
       const BUTTONS_INFO = {
         btnSubmitSale: 'Estoy registrando tu venta, dame un momento ⏳…',
         btnSaveEgreso: 'Estoy guardando tu egreso 💸…',
         btnSaveIngreso: 'Estoy guardando tu ingreso 💰…',
         btnCreateProduct: 'Estoy creando el nuevo producto 📦…',
         btnAddCartLine: 'Estoy agregando un artículo al carrito 🛒…',
+
+        /* export PDF buttons (mensaje inicial) */
         btnExportSalesRange: 'Estoy generando el PDF de tus ventas 📑…',
         btnExportEgresosRange: 'Estoy generando el PDF de tus egresos 📑…',
         btnExportIngresosRange: 'Estoy generando el PDF de tus ingresos 📑…',
@@ -505,9 +519,12 @@
         if (!b) return;
         b.addEventListener('click', () => {
           showLuciToast(BUTTONS_INFO[btnId], 'info', { duration: 1400 });
-          // export buttons -> simulate confirmation after short delay
+
+          // Si es export PDF: mostrar confirmación final unos ms después
           if (btnId.startsWith('btnExport')) {
-            setTimeout(()=> window.luciEvents.pdf(), 900);
+            setTimeout(() => {
+              window.luciEvents.pdf();
+            }, 900);
           }
         }, { passive: true });
       });
@@ -563,3 +580,6 @@
   <!-- FIN -->
 </body>
 </html>
+
+
+
