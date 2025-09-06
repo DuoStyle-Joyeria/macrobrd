@@ -475,7 +475,12 @@ function setupPosHandlers() {
 function createCartLine() {
   const tr = document.createElement("tr");
   const selectHtml = `
-    
+    <div>
+      <input type="text" class="prodSearch w-full border rounded p-1 mb-1" placeholder="Buscar producto (nombre, color, talla, sku...)">
+      <select class="prodSelect w-full border rounded p-1">
+        <option value="">-- seleccionar --</option>
+      </select>
+    </div>
   `;
   tr.innerHTML = `
     <td>${selectHtml}</td>
