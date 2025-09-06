@@ -472,6 +472,62 @@ function setupPosHandlers() {
   createCartLine(); // línea por defecto
 }
 
+function createCartLine() {
+  const tr = document.createElement("tr");
+  const selectHtml = `
+    
+  `;
+  tr.innerHTML = `
+    <td>${selectHtml}</td>
+    <td><input type="number" class="lineQty border rounded p-1 w-24" min="1" value="1"></td>
+    <td><input type="number" class="linePrice border rounded p-1 w-32" min="0" step="0.01"></td>
+    <td class="lineSubtotal">${money(0)}</td>
+    <td><button class="btnRemoveLine px-2 py-1 border rounded">Eliminar</button></td>
+  `;
+  $("#cartBody").appendChild(tr);
+
+  const selectEl = tr.querySelector(".prodSelect");
+  const searchInput = tr.querySelector(".prodSearch");
+  populateProductSelectElement(selectEl);
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim().toLowerCase();
+    Array.from(selectEl.options).forEach(opt => {
+      if (!opt.value) { opt.hidden = false; return; }
+      opt.hidden = q ? !opt.text.toLowerCase().includes(q) : false;
+    });
+  });
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const first = Array.from(selectEl.options).find(o => !o.hidden && o.value);
+      if (first) {
+        selectEl.value = first.value;
+        selectEl.dispatchEvent(new Event('change'));
+      }
+    }
+  });
+
+  selectEl.onchange = (e) => {
+    const pid = e.target.value;
+    if (!pid) {
+      tr.querySelector(".linePrice").value = 0;
+      tr.querySelector(".lineQty").value   = 1;
+      updateLineSubtotal(tr);
+      return;
+    }
+    const p = inventoryCache.get(pid);
+    tr.dataset.productId = pid;
+    tr.querySelector(".linePrice").value = p.price || 0;
+    tr.querySelector(".lineQty").value   = 1;
+    updateLineSubtotal(tr);
+  };
+
+  tr.querySelector(".lineQty").oninput   = () => updateLineSubtotal(tr);
+  tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
+  tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
+}
+
 function populateProductSelectElement(selectEl) {
   const current = selectEl.value || "";
   selectEl.innerHTML = `<option value="">-- seleccionar --</option>`;
