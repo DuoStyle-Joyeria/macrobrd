@@ -22,20 +22,15 @@
     .kbd { background:#111827; color:#fff; padding:2px 6px; border-radius:4px; font-size:12px; }
   </style>
 
-  <!-- Luci identity CSS (final) -->
+  <!-- Luci identity CSS (debe estar después de Tailwind para overrides) -->
   <link rel="stylesheet" href="css/luci.css">
 </head>
 <body class="bg-slate-50 text-slate-800 luci">
   <div id="app" class="max-w-6xl mx-auto p-4">
-
     <!-- AUTH -->
-    <div id="authView" class="mt-10">
+    <div id="authView" class="mt-10" style="position:relative;">
 
-      <!-- ======= WELCOME OVERLAY (login) - agregado no intrusivo =======
-           - checkbox oculto para permitir "Comenzar" sin JS
-           - overlay con logo grande y CTA
-           - animación corta (1.5s) definida en css/luci.css
-      -->
+      <!-- ===== WELCOME OVERLAY (agregado, no intrusivo) ===== -->
       <input id="luci-welcome-toggle" class="luci-hidden-checkbox" type="checkbox" aria-hidden="true" />
       <div class="luci-welcome-overlay" role="dialog" aria-labelledby="luciWelcomeTitle" aria-describedby="luciWelcomeDesc">
         <img src="assets/logo luci.png" alt="Logo Luci" />
@@ -100,14 +95,14 @@
 
     <!-- APP PRINCIPAL -->
     <div id="mainView" class="hidden">
-      <!-- HEADER: logo pequeño + saludo humano a la empresa + rol badge -->
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between mt-4 gap-4">
+      <div class="flex items-center justify-between mt-4">
         <div class="flex items-center gap-3">
+          <!-- Logo pequeño en el header (acompaña el titulo) -->
           <img src="assets/logo luci.png" alt="Luci logo" class="w-10 h-10 rounded-md" style="object-fit:contain;" />
           <div>
-            <!-- Saludo humanizado: se espera que app.js rellene #companyName -->
+            <!-- Saludo humanizado: dejar #companyName para que JS lo rellene -->
             <h1 class="text-2xl font-bold">¡Bienvenido de nuevo, <span id="companyName">Empresa</span>!</h1>
-            <p id="userRole" class="text-sm text-slate-500 mt-1 inline-block bg-slate-100 px-2 py-0.5 rounded"></p>
+            <p id="userRole" class="text-sm text-slate-500 mt-1"></p>
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -376,40 +371,11 @@
           </div>
         </section>
 
-
-
-        <!-- Notificación personalizada -->
-<div id="luci-toast" class="luci-toast hidden">
-  <div class="luci-toast-content">
-    <span class="luci-toast-icon">✅</span>
-    <span id="luci-toast-message">Venta registrada correctamente</span>
-  </div>
-</div>
-
-<script>
-  // Interceptar alert() sin modificar tu JS original
-  (function() {
-    const oldAlert = window.alert;
-    window.alert = function(message) {
-      const toast = document.getElementById("luci-toast");
-      const text = document.getElementById("luci-toast-message");
-      text.textContent = message;
-      toast.classList.remove("hidden");
-      setTimeout(() => {
-        toast.classList.add("hidden");
-      }, 3000); // Se oculta automáticamente después de 3s
-      return oldAlert; // opcional, si quieres mantener el alert nativo
-    };
-  })();
-</script>
-
-
-
       </div>
     </div>
   </div>
 
-  <!-- Contenedor para toasts (vacío por defecto). Tu JS puede insertar notificaciones aquí -->
+  <!-- Contenedor para toasts (Luci) -->
   <div id="luci-toasts" class="luci-toasts" aria-live="polite" role="status"></div>
 
   <!-- Anunciador para lectores de pantalla -->
@@ -421,5 +387,153 @@
 
   <!-- Llamamos al JS principal que contiene toda la lógica (NO MODIFICADO) -->
   <script type="module" src="js/app.js"></script>
+
+  <!-- ===== Script de notificaciones (NO modifica js/app.js) =====
+       - Intercepta alert() y lo muestra como toast.
+       - Observa cambios en tablas clave para notificar automáticamente.
+       - Añade toasts informativos cuando el usuario pulsa botones de acción.
+       - Pega este bloque justo después de app.js
+  -->
+  <script>
+  (function(){
+    // --- configuración ---
+    const TOAST_CONTAINER_ID = 'luci-toasts';
+    const DEFAULT_DURATION = 3200; // ms
+
+    // crea/obtiene contenedor
+    function ensureContainer(){
+      let container = document.getElementById(TOAST_CONTAINER_ID);
+      if (!container){
+        container = document.createElement('div');
+        container.id = TOAST_CONTAINER_ID;
+        container.className = 'luci-toasts';
+        container.setAttribute('aria-live','polite');
+        container.setAttribute('role','status');
+        document.body.appendChild(container);
+      }
+      return container;
+    }
+
+    // escapar texto simple para evitar inyección accidental
+    function esc(s){ return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    // mostrar toast
+    function showLuciToast(message, type='success', options={}){
+      const dur = options.duration || DEFAULT_DURATION;
+      const container = ensureContainer();
+      const toast = document.createElement('div');
+      toast.className = 'luci-toast ' + (type || 'success');
+      toast.innerHTML = `
+        <div class="luci-toast-body" style="display:flex;gap:.6rem;align-items:center;">
+          <div class="luci-toast-icon" aria-hidden="true" style="font-size:18px;">
+            ${ type === 'success' ? '✅' : type === 'error' ? '⚠️' : type === 'warn' ? '⚠' : 'ℹ️' }
+          </div>
+          <div class="luci-toast-text" style="line-height:1.25; color:inherit;">${esc(message)}</div>
+        </div>
+        <button class="close" aria-label="Cerrar">×</button>
+      `;
+      container.appendChild(toast);
+
+      // small delay to allow CSS transitions
+      requestAnimationFrame(()=> toast.classList.add('show'));
+
+      const remove = () => {
+        toast.classList.remove('show');
+        setTimeout(()=> { try{ toast.remove(); } catch(e){} }, 260);
+      };
+
+      // close button
+      const btn = toast.querySelector('.close');
+      if (btn) btn.addEventListener('click', remove);
+
+      // auto remove
+      if (!options.permanent) {
+        setTimeout(remove, dur);
+      }
+
+      return { remove, element: toast };
+    }
+
+    // Intercepta alert() para mostrar toast en su lugar
+    (function overrideAlert(){
+      try {
+        const nativeAlert = window.alert;
+        window.alert = function(msg){
+          // mostramos toast; no bloqueamos con alert nativo
+          try {
+            showLuciToast(msg ?? 'Notificación', 'success', { duration: 2800 });
+          } catch(e){}
+          // si quieres mantener nativeAlert descomenta la siguiente línea:
+          // nativeAlert(msg);
+        };
+      } catch(e) { console.warn('Luci toast: no se pudo sobrescribir alert()', e); }
+    })();
+
+    // Observador para tablas: si se añade una fila nueva, mostramos toast correspondiente.
+    const TABLE_MAP = {
+  tbVentas: 'Hola, soy Luci 👋 Acabo de registrar tu venta exitosamente.',
+  tbInventory: 'He actualizado el inventario con los cambios que acabas de hacer.',
+  tbEgresos: 'He anotado tu egreso, todo está bajo control.',
+  tbIngresos: 'Tu ingreso fue registrado, ¡así crece tu negocio 🚀!',
+  tbMovimientos: 'He registrado el movimiento en tu sistema.'
+};
+
+
+    // Setup: ejecutar después de que app.js haya inicializado DOM
+    function setupObserversAndButtons(){
+      // Observers
+      Object.keys(TABLE_MAP).forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        // baseline — número actual de filas/elementos
+        let baseline = el.children.length;
+        const mo = new MutationObserver(mutations => {
+          for (const m of mutations){
+            if (m.addedNodes && m.addedNodes.length > 0){
+              // solo notificamos si el número aumentó respecto a baseline (evita notificar por re-render inicial)
+              const nowCount = el.children.length;
+              if (nowCount > baseline){
+                showLuciToast(TABLE_MAP[id], 'success');
+              }
+              baseline = nowCount;
+            }
+          }
+        });
+        mo.observe(el, { childList: true, subtree: false });
+      });
+
+      // Botones que normalmente inician acciones — feedback inmediato
+      const BUTTONS_INFO = {
+  btnSubmitSale: 'Estoy registrando tu venta, dame un momento ⏳…',
+  btnSaveEgreso: 'Estoy guardando tu egreso 💸…',
+  btnSaveIngreso: 'Estoy guardando tu ingreso 💰…',
+  btnCreateProduct: 'Estoy creando el nuevo producto 📦…',
+  btnAddCartLine: 'Estoy agregando un artículo al carrito 🛒…'
+};
+
+      Object.keys(BUTTONS_INFO).forEach(btnId => {
+        const b = document.getElementById(btnId);
+        if (!b) return;
+        b.addEventListener('click', () => {
+          // toast temporal informativo (no cierra hasta 1.2s)
+          showLuciToast(BUTTONS_INFO[btnId], 'info', { duration: 1200 });
+        }, { passive: true });
+      });
+    }
+
+    // Ejecutar setup después de que app.js se ejecute y renderice la UI.
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(setupObserversAndButtons, 120);
+    } else {
+      window.addEventListener('DOMContentLoaded', () => setTimeout(setupObserversAndButtons, 120));
+    }
+
+    // Exponer función global por si quieres invocarla manualmente desde la consola o tu JS
+    window.showLuciToast = showLuciToast;
+
+  })();
+  </script>
+
+  <!-- FIN -->
 </body>
 </html>

@@ -14,6 +14,59 @@ const firebaseConfig = {
 };
 
 
+
+// Función global para mostrar notificaciones humanizadas de Luci
+function luciNotify(type, message) {
+  const container = document.getElementById("luci-toasts");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = `luci-toast ${type}`;
+  toast.innerHTML = `
+    <span class="luci-toast-icon">
+      ${type === "success" ? "✅" : type === "error" ? "⚠️" : type === "warn" ? "⚠️" : "ℹ️"}
+    </span>
+    <div class="luci-toast-message">${message}</div>
+    <button class="close">&times;</button>
+  `;
+
+  container.appendChild(toast);
+
+  
+  // Forzar animación
+  setTimeout(() => toast.classList.add("show"), 100);
+
+  // Auto eliminar después de 3.5s
+  const autoRemove = setTimeout(() => removeToast(toast), 3500);
+
+  // Cerrar manualmente
+  toast.querySelector(".close").addEventListener("click", () => {
+    clearTimeout(autoRemove);
+    removeToast(toast);
+  });
+
+  function removeToast(el) {
+    el.classList.remove("show");
+    setTimeout(() => el.remove(), 300);
+  }
+}
+
+
+
+// Hooks básicos (ejemplo: puedes reemplazar console.log en app.js por estos)
+window.luciEvents = {
+  venta: () => luciNotify("success", "Hola, soy Luci 👋 Acabo de registrar tu venta exitosamente."),
+  inventario: () => luciNotify("info", "He actualizado el inventario con los cambios que acabas de hacer."),
+  ingreso: () => luciNotify("success", "Tu ingreso fue registrado, ¡así crece tu negocio 🚀!"),
+  egreso: () => luciNotify("warn", "He anotado tu egreso, todo está bajo control."),
+  pdf: () => luciNotify("success", "He registrado todos los datos y descargado tu PDF exitosamente."),
+  eliminado: () => luciNotify("error", "He eliminado ese registro de tu sistema, tranquilo que ya no está.")
+};
+
+
+
+
+
 /* ======================
    IMPORTS (Firebase modular SDK)
    ====================== */

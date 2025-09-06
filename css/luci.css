@@ -266,3 +266,76 @@ body.luci {
 .hidden {
   display: none;
 }
+
+
+
+/* ===== Estilos de notificaciones Luci ===== */
+.luci-toasts {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  z-index: 9999;
+  max-width: 320px;
+  font-family: system-ui, sans-serif;
+}
+
+.luci-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .75rem 1rem;
+  border-radius: .5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  font-size: .9rem;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all .25s ease;
+  color: #fff; /* texto blanco por defecto */
+}
+
+.luci-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Colores según tipo */
+.luci-toast.success {
+  background: #16a34a; /* verde */
+}
+
+.luci-toast.error {
+  background: #dc2626; /* rojo */
+}
+
+.luci-toast.warn {
+  background: #ca8a04; /* amarillo mostaza */
+}
+
+.luci-toast.info {
+  background: #2563eb; /* azul */
+}
+
+/* Icono y texto */
+.luci-toast .luci-toast-icon {
+  font-size: 1.2rem;
+}
+
+.luci-toast .luci-toast-text {
+  flex: 1;
+  margin-left: .5rem;
+  line-height: 1.3;
+}
+
+/* Botón de cerrar */
+.luci-toast button.close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: .5rem;
+}
