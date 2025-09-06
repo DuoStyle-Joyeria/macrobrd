@@ -15,53 +15,133 @@ const firebaseConfig = {
 
 
 
-// Función global para mostrar notificaciones humanizadas de Luci
-function luciNotify(type, message) {
-  const container = document.getElementById("luci-toasts");
-  if (!container) return;
 
-  const toast = document.createElement("div");
-  toast.className = `luci-toast ${type}`;
-  toast.innerHTML = `
-    <span class="luci-toast-icon">
-      ${type === "success" ? "✅" : type === "error" ? "⚠️" : type === "warn" ? "⚠️" : "ℹ️"}
-    </span>
-    <div class="luci-toast-message">${message}</div>
-    <button class="close">&times;</button>
-  `;
+(function(){
+  const TOAST_CONTAINER_ID = 'luci-toasts';
+  const DEFAULT_DURATION = 3200;
 
-  container.appendChild(toast);
-
-  
-  // Forzar animación
-  setTimeout(() => toast.classList.add("show"), 100);
-
-  // Auto eliminar después de 3.5s
-  const autoRemove = setTimeout(() => removeToast(toast), 3500);
-
-  // Cerrar manualmente
-  toast.querySelector(".close").addEventListener("click", () => {
-    clearTimeout(autoRemove);
-    removeToast(toast);
-  });
-
-  function removeToast(el) {
-    el.classList.remove("show");
-    setTimeout(() => el.remove(), 300);
+  function ensureContainer(){
+    let container = document.getElementById(TOAST_CONTAINER_ID);
+    if (!container){
+      container = document.createElement('div');
+      container.id = TOAST_CONTAINER_ID;
+      container.className = 'luci-toasts';
+      container.setAttribute('aria-live','polite');
+      container.setAttribute('role','status');
+      document.body.appendChild(container);
+    }
+    return container;
   }
-}
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function showLuciToast(message, type='success', options={}){
+    const dur = options.duration || DEFAULT_DURATION;
+    const container = ensureContainer();
+    const toast = document.createElement('div');
+    toast.className = 'luci-toast ' + (type || 'success');
+    toast.innerHTML = `
+      <div class="luci-toast-body" style="display:flex;gap:.6rem;align-items:center;">
+        <div class="luci-toast-icon" aria-hidden="true" style="font-size:18px;">
+          ${ type === 'success' ? '✅' : type === 'error' ? '⚠️' : type === 'warn' ? '⚠' : 'ℹ️' }
+        </div>
+        <div class="luci-toast-text" style="line-height:1.25; color:inherit;">${esc(message)}</div>
+      </div>
+      <button class="close" aria-label="Cerrar">×</button>
+    `;
+    container.appendChild(toast);
+    requestAnimationFrame(()=> toast.classList.add('show'));
+
+    const remove = () => {
+      toast.classList.remove('show');
+      setTimeout(()=> { try{ toast.remove(); } catch(e){} }, 260);
+    };
+
+    const btn = toast.querySelector('.close');
+    if (btn) btn.addEventListener('click', remove);
+
+    if (!options.permanent) {
+      setTimeout(remove, dur);
+    }
+
+    return { remove, element: toast };
+  }
+
+  // Override alert()
+  (function overrideAlert(){
+    try {
+      const nativeAlert = window.alert;
+      window.alert = function(msg){
+        try {
+          showLuciToast(msg ?? 'Notificación', 'success', { duration: 2800 });
+        } catch(e){}
+      };
+    } catch(e) { console.warn('Luci toast: no se pudo sobrescribir alert()', e); }
+  })();
+
+  // Map de tablas → notificación
+  const TABLE_MAP = {
+    tbVentas: 'Hola, soy Luci 👋 Acabo de registrar tu venta exitosamente.',
+    tbInventory: 'He actualizado el inventario con los cambios que acabas de hacer.',
+    tbEgresos: 'He anotado tu egreso, todo está bajo control.',
+    tbIngresos: 'Tu ingreso fue registrado, ¡así crece tu negocio 🚀!',
+    tbMovimientos: 'He registrado el movimiento en tu sistema.'
+  };
+
+  function setupObserversAndButtons(){
+    // Observers de tablas
+    Object.keys(TABLE_MAP).forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      let baseline = el.children.length;
+      const mo = new MutationObserver(mutations => {
+        for (const m of mutations){
+          if (m.addedNodes && m.addedNodes.length > 0){
+            const nowCount = el.children.length;
+            if (nowCount > baseline){
+              showLuciToast(TABLE_MAP[id], 'success');
+            }
+            baseline = nowCount;
+          }
+        }
+      });
+      mo.observe(el, { childList: true, subtree: false });
+    });
+
+    // Botones de acciones rápidas
+    const BUTTONS_INFO = {
+      btnSubmitSale: 'Estoy registrando tu venta, dame un momento ⏳…',
+      btnSaveEgreso: 'Estoy guardando tu egreso 💸…',
+      btnSaveIngreso: 'Estoy guardando tu ingreso 💰…',
+      btnCreateProduct: 'Estoy creando el nuevo producto 📦…',
+      btnAddCartLine: 'Estoy agregando un artículo al carrito 🛒…',
+
+      // === NUEVOS: Exportar PDFs ===
+      btnExportSalesRange: 'He generado tu PDF de ventas 📑✅',
+      btnExportEgresosRange: 'Tu PDF de egresos está listo para descargar 📑✅',
+      btnExportIngresosRange: 'El PDF de ingresos se descargó exitosamente 📑✅',
+      btnExportMovimientosRange: 'Ya tienes tu PDF de movimientos 📑✅'
+    };
+
+    Object.keys(BUTTONS_INFO).forEach(btnId => {
+      const b = document.getElementById(btnId);
+      if (!b) return;
+      b.addEventListener('click', () => {
+        showLuciToast(BUTTONS_INFO[btnId], 'info', { duration: 2000 });
+      }, { passive: true });
+    });
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(setupObserversAndButtons, 120);
+  } else {
+    window.addEventListener('DOMContentLoaded', () => setTimeout(setupObserversAndButtons, 120));
+  }
+
+  window.showLuciToast = showLuciToast;
+})();
 
 
-
-// Hooks básicos (ejemplo: puedes reemplazar console.log en app.js por estos)
-window.luciEvents = {
-  venta: () => luciNotify("success", "Hola, soy Luci 👋 Acabo de registrar tu venta exitosamente."),
-  inventario: () => luciNotify("info", "He actualizado el inventario con los cambios que acabas de hacer."),
-  ingreso: () => luciNotify("success", "Tu ingreso fue registrado, ¡así crece tu negocio 🚀!"),
-  egreso: () => luciNotify("warn", "He anotado tu egreso, todo está bajo control."),
-  pdf: () => luciNotify("success", "He registrado todos los datos y descargado tu PDF exitosamente."),
-  eliminado: () => luciNotify("error", "He eliminado ese registro de tu sistema, tranquilo que ya no está.")
-};
 
 
 
