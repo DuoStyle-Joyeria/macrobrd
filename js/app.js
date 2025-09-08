@@ -142,11 +142,6 @@ const firebaseConfig = {
 })();
 
 
-
-
-
-
-
 /* ======================
    IMPORTS (Firebase modular SDK)
    ====================== */
@@ -1468,8 +1463,6 @@ function renderMovimientosTable(arr) {
   aplicarPaginacion("tbMovimientos", "pagerMovimientos", 15);
 }
 
-
-
 /**
  * Exportar movimientos a PDF usando jsPDF + autoTable.
  * Si no pasas `movs`, exporta `lastMovimientosRendered`.
@@ -1876,9 +1869,7 @@ function aplicarPaginacion(tableId, pagerId, pageSize = 10) {
       pager.appendChild(container);
     }
   }
-
   // inicial
   mostrarPagina(1);
 }
-
 /* FIN app.js */

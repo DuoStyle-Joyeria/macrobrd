@@ -473,33 +473,39 @@
     };
 
     // Observadores y listeners
-    function setupObserversAndButtons(){
-      // Tabla -> mensaje (con baseline para evitar notificar carga inicial)
-      const TABLE_MAP = {
-        tbVentas: () => window.luciEvents.venta(),
-        tbInventory: () => window.luciEvents.inventario(),
-        tbEgresos: () => window.luciEvents.egreso(),
-        tbIngresos: () => window.luciEvents.ingreso(),
-        tbMovimientos: () => showLuciToast('He registrado el movimiento en tu sistema.', 'info')
-      };
+   function setupObserversAndButtons(){
+    const TABLE_MAP = {
+      tbVentas: () => window.luciEvents.venta(),
+      tbInventory: () => window.luciEvents.inventario(),
+      tbEgresos: () => window.luciEvents.egreso(),
+      tbIngresos: () => window.luciEvents.ingreso(),
+      tbMovimientos: () => showLuciToast('He registrado el movimiento en tu sistema.', 'info')
+    };
 
-      Object.keys(TABLE_MAP).forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        let baseline = el.children.length || 0;
-        const mo = new MutationObserver(mutations => {
-          for (const m of mutations) {
-            if (m.addedNodes && m.addedNodes.length > 0) {
-              const nowCount = el.children.length || 0;
-              if (nowCount > baseline) {
-                try { TABLE_MAP[id](); } catch(e){}
-              }
-              baseline = nowCount;
+    Object.keys(TABLE_MAP).forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      let baseline = el.children.length || 0;
+      let ready = false;
+
+      // ⚡️ Tiempo de gracia para ignorar carga inicial
+      setTimeout(()=> { ready = true; }, 1500);
+
+      const mo = new MutationObserver(mutations => {
+        if (!ready) return; // ⛔️ ignorar si aún estamos en carga inicial
+        for (const m of mutations) {
+          if (m.addedNodes && m.addedNodes.length > 0) {
+            const nowCount = el.children.length || 0;
+            if (nowCount > baseline) {
+              try { TABLE_MAP[id](); } catch(e){}
             }
+            baseline = nowCount;
           }
-        });
-        mo.observe(el, { childList: true, subtree: false });
+        }
       });
+      mo.observe(el, { childList: true, subtree: false });
+    });
 
       // Botones con mensajes inmediatos y PDFs
       const BUTTONS_INFO = {
