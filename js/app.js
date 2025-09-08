@@ -1673,8 +1673,7 @@ function normalizeForSearch(str) {
 /* ======================
    BOOT
    ====================== */
-window.addEventListener("load", () => {
-  setTimeout(() => { luciReady = true; }, 2000);
+window.addEventListener("DOMContentLoaded", () => {
   try { setupPosHandlers(); } catch(e) { /* ignore */ }
   try { setupCajaControls(); } catch(e) {}
 });
