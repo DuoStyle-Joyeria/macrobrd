@@ -472,7 +472,7 @@ function setupPosHandlers() {
   $("#btnClearCart").onclick   = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
   $("#btnSubmitSale").onclick  = submitSaleHandler;
   $("#btnExportSalesRange")?.addEventListener("click", exportSalesRangePrompt);
-  createCartLine(); // línea por defecto
+  
 }
 
 function createCartLine() {
@@ -1673,7 +1673,8 @@ function normalizeForSearch(str) {
 /* ======================
    BOOT
    ====================== */
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("load", () => {
+  setTimeout(() => { luciReady = true; }, 2000);
   try { setupPosHandlers(); } catch(e) { /* ignore */ }
   try { setupCajaControls(); } catch(e) {}
 });
