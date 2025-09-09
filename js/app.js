@@ -13,12 +13,6 @@ const firebaseConfig = {
   measurementId: "G-FW6QEJMZKT"
 };
 
-
-
-
-
-  
-
 /* ======================
    IMPORTS (Firebase modular SDK)
    ====================== */
@@ -768,7 +762,6 @@ async function deleteSale(ventaId) {
       }
 
       const totalVenta = Number(venta.total || 0);
-      // categoria no definida aquí (old code referenced 'cat'), use fallback
       const movRef = doc(collection(db, "companies", companyId, "movements"));
       tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: totalVenta, desc: `Eliminación venta ID ${ventaId}`, saleId: ventaId, createdAt: serverTimestamp() });
 
@@ -824,10 +817,8 @@ function renderSalesTable() {
     downloadSalePdf(id, sale);
   });
 
-  // aplicar paginación
   aplicarPaginacion("tbVentas", "pagerVentas", 10);
 }
-
 /* ======================
    PDF helpers (ventas / egresos / ingresos / movimientos)
    ====================== */
@@ -1674,10 +1665,9 @@ function normalizeForSearch(str) {
    BOOT
    ====================== */
 window.addEventListener("DOMContentLoaded", () => {
-  try { setupPosHandlers(); } catch(e) { /* ignore */ }
+  try { setupPosHandlers(); } catch(e) {}
   try { setupCajaControls(); } catch(e) {}
 });
-
 window._dbg = { db, inventoryCache, salesCache, runTransaction };
 
 
