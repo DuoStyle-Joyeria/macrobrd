@@ -5,31 +5,44 @@ const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const OpenAI = require("openai");
 
-// Inicializar Firebase Admin
+// ✅ Inicializar Firebase Admin una sola vez
 initializeApp();
 const auth = getAuth();
 const db = getFirestore();
 
 /**
- * createEmployee (callable)
- * - Lo dejé igual que antes (verifica permisos desde users doc).
+ * 📌 Función: Crear empleados
  */
 exports.createEmployee = onCall(async (request) => {
   try {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Debes estar autenticado.");
-
-    const { email, password, name, companyId, role } = request.data;
-    if (!email || !password || !name || !companyId) throw new HttpsError("invalid-argument", "Faltan datos requeridos.");
-
-    const callerDoc = await db.collection("users").doc(request.auth.uid).get();
-    if (!callerDoc.exists) throw new HttpsError("permission-denied", "Usuario no encontrado.");
-    const callerData = callerDoc.data();
-    if (callerData.role !== "admin" || callerData.companyId !== companyId) {
-      throw new HttpsError("permission-denied", "No tienes permisos para crear empleados.");
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes estar autenticado.");
     }
 
-    const userRecord = await auth.createUser({ email, password, displayName: name });
+    const { email, password, name, companyId, role } = request.data;
+    if (!email || !password || !name || !companyId) {
+      throw new HttpsError("invalid-argument", "Faltan datos requeridos.");
+    }
 
+    // ✅ Validar permisos
+    const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+    if (!callerDoc.exists) {
+      throw new HttpsError("permission-denied", "Usuario no encontrado.");
+    }
+
+    const callerData = callerDoc.data();
+    if (callerData.role !== "admin" || callerData.companyId !== companyId) {
+      throw new HttpsError("permission-denied", "No tienes permisos.");
+    }
+
+    // ✅ Crear usuario en Firebase Auth
+    const userRecord = await auth.createUser({
+      email,
+      password,
+      displayName: name,
+    });
+
+    // ✅ Guardar en Firestore
     await db.collection("users").doc(userRecord.uid).set({
       name,
       email,
@@ -41,119 +54,109 @@ exports.createEmployee = onCall(async (request) => {
 
     return { success: true, uid: userRecord.uid };
   } catch (error) {
-    console.error("createEmployee error:", error);
+    console.error("Error en createEmployee:", error);
     throw new HttpsError("internal", error.message || "Error interno");
   }
 });
 
 /**
- * luciChat (callable)
- *
- * - Secrets: OPENAI_API_KEY (configúralo con firebase functions:secrets:set ...)
- * - Parámetros esperados en request.data:
- *    { message, companyId, intent = 'general', chatId = null, userId = null }
- *
- * - Intents:
- *    'general'  -> uso de modelo barato (gpt-4o-mini), max_tokens pequeño
- *    'analysis' -> usa datos Firestore + modelo más potente (p. ej. gpt-4o), más tokens
- *
- * - Guarda historial en Firestore:
- *    companies/{companyId}/chats/{chatId}/messages
+ * 🤖 Función: Chat de Luci (IA híbrida Firestore + OpenAI)
  */
 exports.luciChat = onCall(
   { secrets: ["OPENAI_API_KEY"] },
   async (request) => {
     try {
-      const { message, companyId = null, intent = "general", chatId = null, userId = null } = request.data || {};
-      if (!message || typeof message !== "string" || !message.trim()) {
+      const { message, companyId } = request.data;
+      if (!message) {
         throw new HttpsError("invalid-argument", "Falta el mensaje.");
       }
 
-      // Inicializar OpenAI dentro de la función (buena práctica)
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-      // Selección de modelo y políticas de tokens (ahorro de costos)
-      let model = "gpt-4o-mini";        // por defecto (barato)
-      let max_tokens = 400;            // límite por defecto (reduce costos)
-      let temperature = 0.25;          // respuestas más deterministas
-
-      if (intent === "analysis" || intent === "advanced") {
-        model = "gpt-4o";             // usa un modelo más potente para análisis
-        max_tokens = 900;             // más tokens para análisis profundos
-        temperature = 0.2;
-      }
-
-      // DEBUG shortcut: si escriben "debug" devolvemos info sin pasar por IA
-      if (message.trim().toLowerCase() === "debug" && companyId) {
-        const compRef = db.collection("companies").doc(companyId);
-        const cs = await compRef.get();
-        if (!cs.exists) return { answer: "❌ No encontré la empresa con ese ID." };
-        const comp = cs.data();
-        return { answer: `🔍 Debug info:\nEmpresa: ${comp.name || "Sin nombre"}\nOwners: ${JSON.stringify(comp.owners || [])}` };
-      }
-
-      // Si se pidió 'analysis' intent: agregar contexto corto desde Firestore (solo lo necesario)
-      let dbContext = "";
-      if (companyId && intent === "analysis") {
-        try {
-          const compRef = db.collection("companies").doc(companyId);
-          const compSnap = await compRef.get();
-          if (compSnap.exists) {
-            const compData = compSnap.data();
-            // ejemplo de datos útiles: nombre, número de ventas totales en últimos 90 días (si lo tienes en una colección)
-            dbContext += `Empresa: ${compData.name || "sin-nombre"}\n`;
-            // intenta leer conteos simples (no traigas listas grandes)
-            const salesCol = await compRef.collection("sales").limit(1).get(); // solo prueba para exist
-            // si quieres más métricas, calcula y guarda en un campo 'analytics.summary' para evitar lecturas masivas
-            dbContext += `Nota: Esta empresa tiene ventas guardadas (no se obtuvieron totales aquí).\n`;
-          } else {
-            dbContext += "Empresa no encontrada.\n";
-          }
-        } catch (e) {
-          console.error("Error leyendo Firestore para contexto:", e);
-        }
-      }
-
-      // Armar mensajes para la llamada a OpenAI (sólo incluir dbContext si es corto)
-      const systemContent = `Eres Luci, asistente experta en negocios y marketing. Responde de forma clara y profesional. Usa datos de la empresa si están disponibles: ${dbContext ? "sí" : "no"}.`;
-      const userContent = dbContext ? `${dbContext}\nPregunta: ${message}` : message;
-
-      // Llamada a OpenAI (control de tokens y modelo)
-      const completion = await openai.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: systemContent },
-          { role: "user", content: userContent }
-        ],
-        max_tokens,
-        temperature,
-        // noprobs, top_p pueden ajustarse si quieres
+      // ⚡ Inicializar cliente OpenAI
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
       });
 
-      // Obtener respuesta
-      const answer = (completion?.choices?.[0]?.message?.content) ? completion.choices[0].message.content : "Lo siento, no tuve respuesta del modelo.";
+      // 🐞 DEBUG MODE
+      if (message.toLowerCase() === "debug" && companyId) {
+        const companyRef = db.collection("companies").doc(companyId);
+        const companySnap = await companyRef.get();
 
-      // Guardar en Firestore (historial) — si tenemos companyId y chatId (si no, intentamos crear chatId por user)
-      try {
-        if (companyId) {
-          const finalChatId = chatId || (userId ? `${userId}_default` : `guest_${Date.now()}`);
-          const messagesRef = db.collection("companies").doc(companyId).collection("chats").doc(finalChatId).collection("messages");
-          const ts = FieldValue.serverTimestamp();
-          // Guardar usuario mensaje
-          await messagesRef.add({ role: "user", text: message, ts, userId: userId || null });
-          // Guardar luci respuesta
-          await messagesRef.add({ role: "luci", text: answer, ts, model, tokensUsed: (completion.usage || null) });
+        if (!companySnap.exists) {
+          return { answer: "❌ Empresa no encontrada en Firestore." };
         }
-      } catch (e) {
-        // no interrumpimos la respuesta si falla el guardado
-        console.warn("No se pudo guardar historial de chat:", e);
+
+        const companyData = companySnap.data();
+        return {
+          answer: `🔍 Debug info:\nEmpresa: ${companyData.name || "Sin nombre"}\nOwners: ${JSON.stringify(
+            companyData.owners || []
+          )}`,
+        };
       }
 
-      // Responder al cliente
-      return { answer, model, usage: completion.usage || null };
-    } catch (err) {
-      console.error("luciChat error:", err);
-      throw new HttpsError("internal", err.message || "Error interno en Luci.");
+      let dbAnswer = null;
+
+      // 📊 Siempre que tengamos companyId, traemos datos de Firestore
+      if (companyId) {
+        try {
+          const companyRef = db.collection("companies").doc(companyId);
+          const companySnap = await companyRef.get();
+
+          if (!companySnap.exists) {
+            dbAnswer = "❌ No encontré datos de la empresa.";
+          } else {
+            const companyData = companySnap.data();
+
+            // 🔎 Cargar empleados
+            const employeesSnap = await companyRef.collection("employees").get();
+            const employees = employeesSnap.docs.map((doc) => doc.data());
+
+            // 🔎 Cargar ventas
+            const salesSnap = await companyRef.collection("ventas").get();
+            const ventas = salesSnap.docs.map((doc) => doc.data());
+
+            // 🔎 Cargar egresos
+            const expensesSnap = await companyRef.collection("egresos").get();
+            const egresos = expensesSnap.docs.map((doc) => doc.data());
+
+            // 🔎 Cargar ingresos
+            const ingresosSnap = await companyRef.collection("ingresos").get();
+            const ingresos = ingresosSnap.docs.map((doc) => doc.data());
+
+            // 🔎 Resumen rápido para IA
+            dbAnswer = `📊 Empresa: ${companyData.name || "Sin nombre"}
+👥 Empleados: ${employees.length}
+💰 Ventas registradas: ${ventas.length}
+📉 Egresos registrados: ${egresos.length}
+📈 Ingresos registrados: ${ingresos.length}`;
+          }
+        } catch (err) {
+          console.error("Error Firestore:", err);
+          dbAnswer = "⚠️ Error consultando la base de datos.";
+        }
+      }
+
+      // 🧠 Preparar prompt para OpenAI
+      const prompt = dbAnswer
+        ? `El usuario dijo: "${message}". Estos son los datos de la empresa:\n${dbAnswer}\nUsa esta información para responder de forma personalizada.`
+        : `El usuario dijo: "${message}". Responde como asistente de negocios aunque no tengas datos de Firestore.`;
+
+      // 🚀 Llamada a OpenAI
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Eres Luci, una asistente experta en negocios y marketing. Siempre responde con datos reales de Firestore si están disponibles. Si no hay datos, responde de forma general como consultora.",
+          },
+          { role: "user", content: prompt },
+        ],
+      });
+
+      return { answer: completion.choices[0].message.content };
+    } catch (error) {
+      console.error("Error en luciChat:", error);
+      throw new HttpsError("internal", error.message || "Error en Luci.");
     }
   }
 );

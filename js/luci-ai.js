@@ -73,8 +73,12 @@ function escapeHtml(s) {
   }[c]));
 }
 
-// 📜 Historial de chat en memoria
-let chatHistory = [];
+// 📜 Historial persistente en localStorage
+let chatHistory = JSON.parse(localStorage.getItem("luciChatHistory")) || [];
+
+function saveHistory() {
+  localStorage.setItem("luciChatHistory", JSON.stringify(chatHistory));
+}
 
 // 🪄 Crear la UI del chat de Luci
 function createLuciUI() {
@@ -104,7 +108,10 @@ function createLuciUI() {
   document.body.appendChild(root);
 
   // Cerrar chat
-  document.getElementById("luci-close").onclick = () => root.remove();
+  document.getElementById("luci-close").onclick = () => {
+    saveHistory();
+    root.remove();
+  };
 
   const msgs = document.getElementById("luci-messages");
   const inp = document.getElementById("luci-input");
@@ -122,11 +129,21 @@ function createLuciUI() {
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
     chatHistory.push({ who, text });
+    saveHistory();
   }
 
   // 🔁 Cargar historial previo si lo hay
   if (chatHistory.length > 0) {
     chatHistory.forEach((m) => appendMessage(m.who, m.text));
+  }
+
+  // Detectar intención básica
+  function detectIntent(text) {
+    const lower = text.toLowerCase();
+    if (lower.includes("venta") || lower.includes("ingreso") || lower.includes("egreso") || lower.includes("producto")) {
+      return "analysis";
+    }
+    return "general";
   }
 
   // Enviar mensaje al backend
@@ -139,12 +156,12 @@ function createLuciUI() {
 
     try {
       const luciCall = httpsCallable(functions, "luciChat");
+      const intent = detectIntent(text);
 
-      // 🚀 Ahora se envía el companyId real
       const res = await luciCall({
         message: text,
-        companyId: currentCompanyId,  // ✅ Firestore integrado
-        intent: "general"
+        companyId: currentCompanyId,
+        intent
       });
 
       // Reemplazar "Pensando..." con la respuesta real
