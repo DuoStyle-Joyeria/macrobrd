@@ -26,9 +26,17 @@
 
   <!-- Luci identity CSS (debe estar después de Tailwind para overrides) -->
   <link rel="stylesheet" href="css/luci.css">
- <script type="module" src="js/luci-ai.js"></script>
-<button onclick="openLuciChat()">Abrir Luci</button>
 
+<!-- Cargar script de Luci -->
+<script type="module" src="/js/luci-ai.js"></script>
+
+<!-- Botón para abrir Luci -->
+<button onclick="openLuciChat()" 
+        style="position:fixed;bottom:20px;right:20px;background:#2563eb;color:#fff;
+               border:none;padding:12px 18px;border-radius:50px;cursor:pointer;
+               font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.2)">
+  💬 Chat con Luci
+</button>
 
 
 </head>

@@ -1,8 +1,11 @@
 // js/luci-ai.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
-// 🔑 Config de Firebase (usa la misma que en tu app principal)
+// 🔑 Config de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCTFSlLoKv6KKujTqjMeMjNc-AlKQ2-rng",
   authDomain: "duostyle01-611b9.firebaseapp.com",
@@ -13,16 +16,51 @@ const firebaseConfig = {
   measurementId: "G-FW6QEJMZKT"
 };
 
-// ✅ Inicializar Firebase (evitar reinicialización si ya existe)
+// ✅ Inicializar Firebase
 let app;
 try {
   app = initializeApp(firebaseConfig);
 } catch (e) {
   console.log("Firebase ya inicializado, reutilizando instancia.");
 }
-const functions = getFunctions();
+const functions = getFunctions(app);
 
-// 🔒 Escapar HTML simple para los mensajes
+// 🧪 Si estás en localhost, usar el emulador
+if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+  connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+  console.log("✅ Conectado al emulador de Functions");
+}
+
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+
+// 🌍 Guardar el companyId detectado
+let currentCompanyId = null;
+
+// 📡 Escuchar cambios de login y cargar el companyId del usuario
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    console.log("✅ Usuario logueado:", user.uid);
+    try {
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        currentCompanyId = userSnap.data().companyId || null;
+        console.log("✅ Company ID detectado:", currentCompanyId);
+      } else {
+        console.warn("⚠️ No se encontró el perfil del usuario en Firestore.");
+      }
+    } catch (err) {
+      console.error("❌ Error al obtener companyId:", err);
+    }
+  } else {
+    console.log("❌ Usuario no autenticado");
+    currentCompanyId = null;
+  }
+});
+
+// 🔒 Escapar HTML para los mensajes
 function escapeHtml(s) {
   if (!s) return "";
   return String(s).replace(/[&<>"'`=\/]/g, (c) => ({
@@ -37,7 +75,7 @@ function escapeHtml(s) {
   }[c]));
 }
 
-// 🪄 Crear la UI de Luci
+// 🪄 Crear la UI del chat de Luci
 function createLuciUI() {
   if (document.getElementById("luci-chat-root")) return;
 
@@ -94,10 +132,14 @@ function createLuciUI() {
 
     try {
       const luciCall = httpsCallable(functions, "luciChat");
-      const companyId = document.getElementById("companyIdLabel")?.textContent || null;
 
-      // 👇 puedes cambiar "analysis" por "chat" si quieres modo general
-      const res = await luciCall({ message: text, companyId, intent: "analysis" });
+      // 🚀 Enviar mensaje con el companyId del usuario logueado
+      const res = await luciCall({
+  message: text,
+  companyId: null,   // 🔥 así evitamos que busque en Firestore
+  intent: "general"  // 🔥 fuerza modo IA
+});
+
 
       // Reemplazar "Pensando..." con la respuesta real
       const last = msgs.lastChild;
@@ -115,5 +157,5 @@ function createLuciUI() {
   inp.onkeydown = (e) => { if (e.key === "Enter") send(); };
 }
 
-// 🌍 Exponer función global para abrir Luci
+// 🌍 Exponer función global para abrir el chat
 window.openLuciChat = createLuciUI;

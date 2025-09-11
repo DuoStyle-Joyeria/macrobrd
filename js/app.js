@@ -1,4 +1,4 @@
-/* app.js (reemplaza todo el archivo js/app.js con esto) */
+
 
 /**************************************************************************
  * FIREBASE CONFIG
