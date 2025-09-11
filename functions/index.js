@@ -95,7 +95,7 @@ exports.luciChat = onCall(
 
       let dbAnswer = null;
 
-      // 📊 Siempre que tengamos companyId, traemos datos de Firestore
+      // 📊 Consultar Firestore si hay companyId
       if (companyId) {
         try {
           const companyRef = db.collection("companies").doc(companyId);
@@ -110,9 +110,32 @@ exports.luciChat = onCall(
             const employeesSnap = await companyRef.collection("employees").get();
             const employees = employeesSnap.docs.map((doc) => doc.data());
 
-            // 🔎 Cargar ventas
-            const salesSnap = await companyRef.collection("ventas").get();
-            const ventas = salesSnap.docs.map((doc) => doc.data());
+            // 🔎 Cargar ventas (colección correcta: sales ✅)
+            const salesSnap = await companyRef.collection("sales").get();
+            const sales = salesSnap.docs.map((doc) => doc.data());
+
+            // 🔎 Analizar producto más vendido
+            let productoMasVendido = "N/A";
+            let cantidadMax = 0;
+            if (sales.length > 0) {
+              const contador = {};
+              sales.forEach((venta) => {
+                if (venta.items && Array.isArray(venta.items)) {
+                  venta.items.forEach((item) => {
+                    const nombre = item.name || "Desconocido";
+                    const cantidad = item.qty || 1;
+                    contador[nombre] = (contador[nombre] || 0) + cantidad;
+                  });
+                }
+              });
+
+              for (const [producto, cantidad] of Object.entries(contador)) {
+                if (cantidad > cantidadMax) {
+                  productoMasVendido = producto;
+                  cantidadMax = cantidad;
+                }
+              }
+            }
 
             // 🔎 Cargar egresos
             const expensesSnap = await companyRef.collection("egresos").get();
@@ -125,7 +148,8 @@ exports.luciChat = onCall(
             // 🔎 Resumen rápido para IA
             dbAnswer = `📊 Empresa: ${companyData.name || "Sin nombre"}
 👥 Empleados: ${employees.length}
-💰 Ventas registradas: ${ventas.length}
+💰 Ventas registradas: ${sales.length}
+🔥 Producto más vendido: ${productoMasVendido} (${cantidadMax} unidades)
 📉 Egresos registrados: ${egresos.length}
 📈 Ingresos registrados: ${ingresos.length}`;
           }
