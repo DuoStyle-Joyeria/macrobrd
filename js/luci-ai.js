@@ -4,7 +4,6 @@ import { getFunctions, httpsCallable, connectFunctionsEmulator } from "https://w
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
-
 // 🔑 Config de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCTFSlLoKv6KKujTqjMeMjNc-AlKQ2-rng",
@@ -33,7 +32,6 @@ if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
 
 const auth = getAuth(app);
 const db = getFirestore(app);
-
 
 // 🌍 Guardar el companyId detectado
 let currentCompanyId = null;
@@ -74,6 +72,9 @@ function escapeHtml(s) {
     "=": "&#x3D;",
   }[c]));
 }
+
+// 📜 Historial de chat en memoria
+let chatHistory = [];
 
 // 🪄 Crear la UI del chat de Luci
 function createLuciUI() {
@@ -120,40 +121,43 @@ function createLuciUI() {
       </div>`;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
+    chatHistory.push({ who, text });
   }
 
-  
-
- // Enviar mensaje al backend
-async function send() {
-  const text = inp.value.trim();
-  if (!text) return;
-  inp.value = "";
-  appendMessage("Tú", text);
-  appendMessage("Luci", "Pensando... 🤔");
-
-  try {
-    const luciCall = httpsCallable(functions, "luciChat");
-
-    // 🚀 Ahora se envía el companyId real
-    const res = await luciCall({
-      message: text,
-      companyId: currentCompanyId,  // ✅ ya no null
-      intent: "general"
-    });
-
-    // Reemplazar "Pensando..." con la respuesta real
-    const last = msgs.lastChild;
-    if (last) last.remove();
-    appendMessage("Luci", res.data.answer || "No encontré respuesta 😕");
-  } catch (err) {
-    console.error("Luci error", err);
-    const last = msgs.lastChild;
-    if (last) last.remove();
-    appendMessage("Luci", "⚠️ Error al consultar a Luci. Intenta de nuevo.");
+  // 🔁 Cargar historial previo si lo hay
+  if (chatHistory.length > 0) {
+    chatHistory.forEach((m) => appendMessage(m.who, m.text));
   }
-}
 
+  // Enviar mensaje al backend
+  async function send() {
+    const text = inp.value.trim();
+    if (!text) return;
+    inp.value = "";
+    appendMessage("Tú", text);
+    appendMessage("Luci", "Pensando... 🤔");
+
+    try {
+      const luciCall = httpsCallable(functions, "luciChat");
+
+      // 🚀 Ahora se envía el companyId real
+      const res = await luciCall({
+        message: text,
+        companyId: currentCompanyId,  // ✅ Firestore integrado
+        intent: "general"
+      });
+
+      // Reemplazar "Pensando..." con la respuesta real
+      const last = msgs.lastChild;
+      if (last) last.remove();
+      appendMessage("Luci", res.data.answer || "No encontré respuesta 😕");
+    } catch (err) {
+      console.error("Luci error", err);
+      const last = msgs.lastChild;
+      if (last) last.remove();
+      appendMessage("Luci", "⚠️ Error al consultar a Luci. Intenta de nuevo.");
+    }
+  }
 
   sendBtn.onclick = send;
   inp.onkeydown = (e) => { if (e.key === "Enter") send(); };
