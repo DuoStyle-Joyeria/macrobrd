@@ -1,5 +1,6 @@
 // functions/index.js
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -110,7 +111,7 @@ exports.luciChat = onCall(
             const employeesSnap = await companyRef.collection("employees").get();
             const employees = employeesSnap.docs.map((doc) => doc.data());
 
-            // 🔎 Cargar ventas (colección correcta: sales ✅)
+            // 🔎 Cargar ventas
             const salesSnap = await companyRef.collection("sales").get();
             const sales = salesSnap.docs.map((doc) => doc.data());
 
@@ -184,3 +185,33 @@ exports.luciChat = onCall(
     }
   }
 );
+
+/**
+ * 🧹 cleanOldMemory
+ * Función programada: Limpieza de memoria temporal cada 24h.
+ * Elimina documentos de memory/.../history con más de 15 días.
+ */
+
+exports.cleanOldMemory = onSchedule("every 24 hours", async () => {
+  const cutoff = Date.now() - 15 * 24 * 60 * 60 * 1000; // 15 días
+  const companies = await db.collection("companies").get();
+
+  for (const compDoc of companies.docs) {
+    const memRef = compDoc.ref.collection("memory");
+    const memDocs = await memRef.get();
+
+    for (const memDoc of memDocs.docs) {
+      const historyCol = memDoc.ref.collection("history");
+      const oldSnap = await historyCol.where("savedAt", "<", cutoff).get();
+
+      if (!oldSnap.empty) {
+        const batch = db.batch();
+        oldSnap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+        console.log(
+          `cleanOldMemory: borradas ${oldSnap.size} entradas en ${compDoc.id}/${memDoc.id}`
+        );
+      }
+    }
+  }
+});
