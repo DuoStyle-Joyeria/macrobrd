@@ -90,6 +90,11 @@ onAuthStateChanged(auth, async (user) => {
 
 // 🪄 Crear UI del chat
 function createLuciUI() {
+  if (!currentUserId) {
+    alert("⚠️ Debes iniciar sesión para usar el asistente Luci.");
+    return;
+  }
+
   // evitar duplicar UI
   if (document.getElementById("luci-chat-root")) return;
 
@@ -141,7 +146,7 @@ function createLuciUI() {
     saveHistory();
   }
 
-  // cargar historial sin duplicar
+  // limpiar historial en UI (previene duplicados)
   msgs.innerHTML = "";
   chatHistory.forEach((m) => appendMessage(m.who, m.text));
 
