@@ -71,23 +71,23 @@ exports.luciChat = onCall(
         throw new HttpsError("invalid-argument", "Falta el mensaje.");
       }
 
-      // ⚡ Inicializar cliente OpenAI **dentro de la función** (evita timeout en deploy)
+      // ⚡ Inicializar cliente OpenAI **dentro de la función**
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
 
-      // 🐞 DEBUG MODE → devuelve datos crudos de Firestore sin pasar por la IA
+      // 🐞 DEBUG MODE → devuelve datos crudos de Firestore
       if (message.toLowerCase() === "debug" && companyId) {
         const companyRef = db.collection("companies").doc(companyId);
         const companySnap = await companyRef.get();
 
         if (!companySnap.exists) {
-          return { answer: "❌ No encontré la empresa con ese ID." };
+          return { answer: "❌ Empresa no encontrada en Firestore." };
         }
 
         const companyData = companySnap.data();
         return {
-          answer: `🔍 Debug info:\nEmpresa: ${companyData.name}\nPropietarios: ${JSON.stringify(
+          answer: `🔍 Debug info:\nEmpresa: ${companyData.name || "Sin nombre"}\nOwners: ${JSON.stringify(
             companyData.owners || []
           )}`,
         };
@@ -130,7 +130,7 @@ exports.luciChat = onCall(
           {
             role: "system",
             content:
-              "Eres Luci, una asistente experta en negocios y marketing. Usa datos de Firestore si están disponibles.",
+              "Eres Luci, una asistente experta en negocios y marketing. Siempre usa datos de Firestore si están disponibles para dar respuestas personalizadas a cada empresa o usuario.",
           },
           { role: "user", content: prompt },
         ],
