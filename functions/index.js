@@ -76,6 +76,23 @@ exports.luciChat = onCall(
         apiKey: process.env.OPENAI_API_KEY,
       });
 
+      // 🐞 DEBUG MODE → devuelve datos crudos de Firestore sin pasar por la IA
+      if (message.toLowerCase() === "debug" && companyId) {
+        const companyRef = db.collection("companies").doc(companyId);
+        const companySnap = await companyRef.get();
+
+        if (!companySnap.exists) {
+          return { answer: "❌ No encontré la empresa con ese ID." };
+        }
+
+        const companyData = companySnap.data();
+        return {
+          answer: `🔍 Debug info:\nEmpresa: ${companyData.name}\nPropietarios: ${JSON.stringify(
+            companyData.owners || []
+          )}`,
+        };
+      }
+
       let dbAnswer = null;
 
       // 📊 Si pidieron análisis, consultar Firestore
@@ -113,7 +130,7 @@ exports.luciChat = onCall(
           {
             role: "system",
             content:
-              "Eres Luci, una asistente experta en negocios y marketing.",
+              "Eres Luci, una asistente experta en negocios y marketing. Usa datos de Firestore si están disponibles.",
           },
           { role: "user", content: prompt },
         ],
