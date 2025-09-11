@@ -122,36 +122,38 @@ function createLuciUI() {
     msgs.scrollTop = msgs.scrollHeight;
   }
 
-  // Enviar mensaje al backend
-  async function send() {
-    const text = inp.value.trim();
-    if (!text) return;
-    inp.value = "";
-    appendMessage("Tú", text);
-    appendMessage("Luci", "Pensando... 🤔");
+  
 
-    try {
-      const luciCall = httpsCallable(functions, "luciChat");
+ // Enviar mensaje al backend
+async function send() {
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = "";
+  appendMessage("Tú", text);
+  appendMessage("Luci", "Pensando... 🤔");
 
-      // 🚀 Enviar mensaje con el companyId del usuario logueado
-      const res = await luciCall({
-  message: text,
-  companyId: null,   // 🔥 así evitamos que busque en Firestore
-  intent: "general"  // 🔥 fuerza modo IA
-});
+  try {
+    const luciCall = httpsCallable(functions, "luciChat");
 
+    // 🚀 Ahora se envía el companyId real
+    const res = await luciCall({
+      message: text,
+      companyId: currentCompanyId,  // ✅ ya no null
+      intent: "general"
+    });
 
-      // Reemplazar "Pensando..." con la respuesta real
-      const last = msgs.lastChild;
-      if (last) last.remove();
-      appendMessage("Luci", res.data.answer || "No encontré respuesta 😕");
-    } catch (err) {
-      console.error("Luci error", err);
-      const last = msgs.lastChild;
-      if (last) last.remove();
-      appendMessage("Luci", "⚠️ Error al consultar a Luci. Intenta de nuevo.");
-    }
+    // Reemplazar "Pensando..." con la respuesta real
+    const last = msgs.lastChild;
+    if (last) last.remove();
+    appendMessage("Luci", res.data.answer || "No encontré respuesta 😕");
+  } catch (err) {
+    console.error("Luci error", err);
+    const last = msgs.lastChild;
+    if (last) last.remove();
+    appendMessage("Luci", "⚠️ Error al consultar a Luci. Intenta de nuevo.");
   }
+}
+
 
   sendBtn.onclick = send;
   inp.onkeydown = (e) => { if (e.key === "Enter") send(); };
