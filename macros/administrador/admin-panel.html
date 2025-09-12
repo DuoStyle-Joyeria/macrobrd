@@ -5,61 +5,107 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin Panel — Pagos y Planes</title>
 
-  <!-- Tailwind (opcional) + luci.css -->
+  <!-- Tailwind + estilos -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="css">
 
-  <!-- Chart.js (opcional) -->
+  <!-- Chart.js para gráficas -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="luci bg-slate-50">
-  <div class="max-w-6xl mx-auto p-6">
+  <div class="max-w-7xl mx-auto p-6">
+    <!-- HEADER -->
     <header class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold">Panel Administrador — Pagos, Planes y Afiliados</h1>
-      <div>
+      <h1 class="text-2xl font-bold">Panel Administrador</h1>
+      <div class="flex gap-2">
         <button id="btnReload" class="px-3 py-2 bg-slate-900 text-white rounded">Recargar</button>
         <button id="btnOpenRegister" class="px-3 py-2 bg-emerald-600 text-white rounded">Registrar Pago</button>
       </div>
     </header>
 
-    <section class="grid md:grid-cols-3 gap-4 mb-6">
-      <div class="bg-white p-4 rounded shadow"><div class="text-sm text-slate-500">Empresas</div><div id="kCompanies" class="text-2xl font-semibold">—</div></div>
-      <div class="bg-white p-4 rounded shadow"><div class="text-sm text-slate-500">Ingresos mes</div><div id="kRevenue" class="text-2xl font-semibold">—</div></div>
-      <div class="bg-white p-4 rounded shadow"><div class="text-sm text-slate-500">Comisiones pendientes</div><div id="kCommissions" class="text-2xl font-semibold">—</div></div>
+    <!-- NAVIGATION TABS -->
+    <nav class="mb-6 border-b flex gap-4">
+      <button class="tablink py-2 px-4 border-b-2 border-transparent hover:border-emerald-600" data-tab="dashboard">Dashboard</button>
+      <button class="tablink py-2 px-4 border-b-2 border-transparent hover:border-emerald-600" data-tab="empresas">Empresas</button>
+      <button class="tablink py-2 px-4 border-b-2 border-transparent hover:border-emerald-600" data-tab="afiliados">Afiliados</button>
+      <button class="tablink py-2 px-4 border-b-2 border-transparent hover:border-emerald-600" data-tab="pagos">Pagos</button>
+      <button class="tablink py-2 px-4 border-b-2 border-transparent hover:border-emerald-600" data-tab="estadisticas">Estadísticas</button>
+    </nav>
+
+    <!-- DASHBOARD -->
+    <section id="tab-dashboard" class="tabcontent">
+      <div class="grid md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white p-4 rounded shadow"><div class="text-sm text-slate-500">Empresas</div><div id="kCompanies" class="text-2xl font-semibold">—</div></div>
+        <div class="bg-white p-4 rounded shadow"><div class="text-sm text-slate-500">Ingresos mes</div><div id="kRevenue" class="text-2xl font-semibold">—</div></div>
+        <div class="bg-white p-4 rounded shadow"><div class="text-sm text-slate-500">Comisiones pendientes</div><div id="kCommissions" class="text-2xl font-semibold">—</div></div>
+      </div>
     </section>
 
-    <section class="grid md:grid-cols-2 gap-4">
+    <!-- EMPRESAS -->
+    <section id="tab-empresas" class="tabcontent hidden">
       <div class="bg-white p-4 rounded shadow">
         <h2 class="font-semibold mb-2">Empresas</h2>
-        <div class="table-responsive">
-          <table class="w-full text-sm" id="tblCompanies"><thead><tr><th>Empresa</th><th>Plan</th><th>Status</th><th>Vence</th><th>Acciones</th></tr></thead><tbody id="tbCompanies"></tbody></table>
-        </div>
-      </div>
-
-      <div class="bg-white p-4 rounded shadow">
-        <h2 class="font-semibold mb-2">Afiliados / Vendedores</h2>
-        <div class="table-responsive">
-          <table class="w-full text-sm" id="tblAffiliates"><thead><tr><th>Id</th><th>Saldo</th><th>Acciones</th></tr></thead><tbody id="tbAffiliates"></tbody></table>
+        <div class="table-responsive overflow-x-auto">
+          <table class="w-full text-sm" id="tblCompanies">
+            <thead>
+              <tr><th>Empresa</th><th>Plan</th><th>Status</th><th>Vence</th><th>Saldo</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="tbCompanies"></tbody>
+          </table>
         </div>
       </div>
     </section>
 
-    <section class="mt-6 bg-white p-4 rounded shadow">
-      <h2 class="font-semibold mb-2">Pagos recientes</h2>
-      <div class="table-responsive">
-        <table class="w-full text-sm" id="tblPayments"><thead><tr><th>Fecha</th><th>Empresa</th><th>Monto</th><th>Meses</th><th>Afiliado</th><th>Acciones</th></tr></thead><tbody id="tbPayments"></tbody></table>
+    <!-- AFILIADOS -->
+    <section id="tab-afiliados" class="tabcontent hidden">
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="font-semibold mb-2">Afiliados / Vendedores</h2>
+        <div class="table-responsive overflow-x-auto">
+          <table class="w-full text-sm" id="tblAffiliates">
+            <thead>
+              <tr><th>Nombre</th><th>Teléfono</th><th>Saldo</th><th>% Comisión</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="tbAffiliates"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGOS -->
+    <section id="tab-pagos" class="tabcontent hidden">
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="font-semibold mb-2">Pagos recientes</h2>
+        <div class="table-responsive overflow-x-auto">
+          <table class="w-full text-sm" id="tblPayments">
+            <thead>
+              <tr><th>Fecha</th><th>Empresa</th><th>Monto</th><th>Meses</th><th>Afiliado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="tbPayments"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ESTADISTICAS -->
+    <section id="tab-estadisticas" class="tabcontent hidden">
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="font-semibold mb-4">Estadísticas</h2>
+        <canvas id="chartRevenue" class="w-full h-64"></canvas>
       </div>
     </section>
   </div>
 
-  <!-- Modal registrar pago -->
+  <!-- MODAL registrar pago -->
   <div id="modalRegister" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
     <div class="bg-white rounded p-6 w-full max-w-lg shadow">
       <h3 class="font-semibold text-lg mb-3">Registrar Pago</h3>
       <form id="formRegister" class="space-y-3">
         <div><label class="text-sm">Empresa (companyId)</label><select id="selCompany" class="w-full border rounded p-2"></select></div>
         <div><label class="text-sm">Monto (COP)</label><input id="inpAmount" type="number" min="0" value="80000" class="w-full border rounded p-2"></div>
-        <div class="grid grid-cols-2 gap-2"><div><label>Meses pagados</label><input id="inpMonths" type="number" min="1" value="1" class="w-full border rounded p-2"></div><div><label>Promo (opc)</label><input id="inpPromo" type="text" placeholder="PAY2GET3" class="w-full border rounded p-2"></div></div>
+        <div class="grid grid-cols-2 gap-2">
+          <div><label>Meses pagados</label><input id="inpMonths" type="number" min="1" value="1" class="w-full border rounded p-2"></div>
+          <div><label>Promo (opc)</label><input id="inpPromo" type="text" placeholder="PAY2GET3" class="w-full border rounded p-2"></div>
+        </div>
         <div><label>Afiliado (opc)</label><select id="selAffiliate" class="w-full border rounded p-2"><option value="">— Ninguno —</option></select></div>
         <div><label>Nota</label><input id="inpNote" type="text" class="w-full border rounded p-2"></div>
         <div class="flex justify-end gap-2">
@@ -70,10 +116,25 @@
     </div>
   </div>
 
-  <!-- jsPDF & autoTable para descargas simples si quieres -->
+  <!-- jsPDF para exportar -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.25/dist/jspdf.plugin.autotable.min.js"></script>
 
+  <!-- Script principal -->
   <script type="module" src="js/admin-panel.js"></script>
+  <script>
+    // Activar tabs
+    document.querySelectorAll(".tablink").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        document.querySelectorAll(".tabcontent").forEach(tab=>tab.classList.add("hidden"));
+        document.querySelectorAll(".tablink").forEach(b=>b.classList.remove("border-emerald-600","text-emerald-600"));
+        const target = document.getElementById("tab-"+btn.dataset.tab);
+        btn.classList.add("border-emerald-600","text-emerald-600");
+        if(target) target.classList.remove("hidden");
+      });
+    });
+    // Mostrar dashboard por defecto
+    document.querySelector(".tablink[data-tab='dashboard']").click();
+  </script>
 </body>
 </html>

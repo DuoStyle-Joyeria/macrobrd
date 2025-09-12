@@ -1,10 +1,12 @@
 // js/admin-panel.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
-import { getFirestore, collection, getDocs, query, orderBy, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+import { 
+  getFirestore, collection, getDocs, query, orderBy, doc, getDoc 
+} from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
 
-/* ========== CONFIG (reemplaza si fuera necesario) ========== */
+/* ========== CONFIG FIREBASE ========== */
 const firebaseConfig = {
   apiKey: "AIzaSyCTFSlLoKv6KKujTqjMeMjNc-AlKQ2-rng",
   authDomain: "duostyle01-611b9.firebaseapp.com",
@@ -24,13 +26,13 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const money = n => `$${Number(n||0).toLocaleString('es-CO',{maximumFractionDigits:2})}`;
 
+/* DOM refs */
 const tbCompanies = $("#tbCompanies");
 const kCompanies = $("#kCompanies");
 const kRevenue = $("#kRevenue");
 const kCommissions = $("#kCommissions");
 const tbAffiliates = $("#tbAffiliates");
 const tbPayments = $("#tbPayments");
-
 const modal = $("#modalRegister");
 const btnOpen = $("#btnOpenRegister");
 const btnCancel = $("#btnCancel");
@@ -45,6 +47,7 @@ const btnReload = $("#btnReload");
 
 let companiesCache = [];
 let affiliatesCache = [];
+let paymentsCache = [];
 
 /* Auth: asegurarnos que admin esté logueado */
 onAuthStateChanged(auth, user => {
@@ -53,7 +56,6 @@ onAuthStateChanged(auth, user => {
     window.location.href = "/"; // ajustar a tu login
     return;
   }
-  // carga inicial
   loadAll();
 });
 
@@ -62,14 +64,37 @@ async function loadAll() {
   await loadAffiliates();
   await loadRecentPayments();
   computeKPIs();
+  renderStats();
 }
 
+/* ========== EMPRESAS ========== */
 async function loadCompanies() {
   const q = query(collection(db, "companies"), orderBy("createdAt","desc"));
   const snap = await getDocs(q);
   companiesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  await computeBalances();
   renderCompanies();
   populateCompanySelect();
+}
+
+async function computeBalances() {
+  for (const c of companiesCache) {
+    try {
+      const compRef = doc(db, "companies", c.id);
+      const ingresosSnap = await getDocs(collection(compRef, "ingresos"));
+      const egresosSnap = await getDocs(collection(compRef, "egresos"));
+      const ventasSnap = await getDocs(collection(compRef, "sales"));
+
+      const ingresos = ingresosSnap.docs.reduce((s,d)=>s+Number(d.data().amount||0),0);
+      const egresos = egresosSnap.docs.reduce((s,d)=>s+Number(d.data().amount||0),0);
+      const ventas = ventasSnap.docs.reduce((s,d)=>s+Number(d.data().total||0),0);
+
+      c.balance = ingresos + ventas - egresos;
+    } catch (err) {
+      console.warn("Error calculando saldo empresa:", c.id, err);
+      c.balance = 0;
+    }
+  }
 }
 
 function renderCompanies() {
@@ -81,6 +106,7 @@ function renderCompanies() {
       <td>${escapeHtml(c.planId || (c.price ? `${c.price}` : '-'))}</td>
       <td>${escapeHtml(c.subscriptionStatus || '—')}</td>
       <td>${c.subscriptionEndsAt ? (c.subscriptionEndsAt.seconds ? new Date(c.subscriptionEndsAt.seconds*1000).toLocaleDateString() : c.subscriptionEndsAt) : '-'}</td>
+      <td>${money(c.balance||0)}</td>
       <td>
         <button class="px-2 py-1 border rounded btnView" data-id="${c.id}">Ver</button>
         <button class="px-2 py-1 border rounded btnInvoices" data-id="${c.id}">Facturas</button>
@@ -88,21 +114,12 @@ function renderCompanies() {
     tbCompanies.appendChild(tr);
   });
 
-  $$(".btnView").forEach(b => b.onclick = async (e) => {
+  $$(".btnView").forEach(b => b.onclick = async () => {
     const id = b.dataset.id;
-    const doc = await getDoc(docRef("companies", id));
-    alert(JSON.stringify(doc.data(), null, 2));
-  });
-
-  $$(".btnInvoices").forEach(b => b.onclick = async (e) => {
-    const id = b.dataset.id;
-    // show all payments -> generate combined PDF via client (simple) or call cloud function
-    const gen = httpsCallable(functions, "generateInvoice");
-    alert("Para descargar factura individual usa el botón PDF en la lista de pagos.");
+    const d = await getDoc(doc(db,"companies",id));
+    alert(JSON.stringify(d.data(), null, 2));
   });
 }
-
-function docRef(col, id) { return doc(db, col, id); }
 
 function populateCompanySelect() {
   if (!selCompany) return;
@@ -115,6 +132,7 @@ function populateCompanySelect() {
   });
 }
 
+/* ========== AFILIADOS ========== */
 async function loadAffiliates() {
   try {
     const q = query(collection(db,"affiliates"), orderBy("createdAt","desc"));
@@ -123,7 +141,6 @@ async function loadAffiliates() {
     renderAffiliates();
     populateAffiliateSelect();
   } catch (err) {
-    console.warn("No hay collection 'affiliates' o error:", err);
     affiliatesCache = [];
     renderAffiliates();
   }
@@ -134,14 +151,12 @@ function renderAffiliates() {
   tbAffiliates.innerHTML = "";
   affiliatesCache.forEach(a => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${escapeHtml(a.id)}</td><td>${money(a.balanceOwed||0)}</td><td><button class="px-2 py-1 border rounded btnPay" data-id="${a.id}">Marcar pago</button></td>`;
+    tr.innerHTML = `<td>${escapeHtml(a.name||a.id)}</td>
+      <td>${escapeHtml(a.phone||'-')}</td>
+      <td>${money(a.balanceOwed||0)}</td>
+      <td>${a.commissionPct||0}%</td>
+      <td><button class="px-2 py-1 border rounded btnPay" data-id="${a.id}">Marcar pago</button></td>`;
     tbAffiliates.appendChild(tr);
-  });
-  $$(".btnPay").forEach(b => b.onclick = async () => {
-    const id = b.dataset.id;
-    if (!confirm("Marcar saldo como pagado (solo marca local, debes ejecutar el pago real fuera)?")) return;
-    // llamada a función o actualización según tu seguridad
-    alert("Implementa payout con Cloud Function; aquí solo se marca manual.");
   });
 }
 
@@ -151,34 +166,26 @@ function populateAffiliateSelect() {
   affiliatesCache.forEach(a => {
     const opt = document.createElement("option");
     opt.value = a.id;
-    opt.text = `${a.id} — ${money(a.balanceOwed||0)}`;
+    opt.text = `${a.name||a.id} (${money(a.balanceOwed||0)})`;
     selAffiliate.appendChild(opt);
   });
 }
 
+/* ========== PAGOS ========== */
 async function loadRecentPayments() {
   try {
     const payments = [];
-
     for (const c of companiesCache) {
       const companyRef = doc(db, "companies", c.id);
-      const paymentsCol = collection(companyRef, "payments");
-      const ps = await getDocs(query(paymentsCol, orderBy("createdAt", "desc")));
-      
-      ps.docs.forEach(d => payments.push({
-        companyId: c.id,
-        id: d.id,
-        ...d.data()
-      }));
+      const ps = await getDocs(query(collection(companyRef, "payments"), orderBy("createdAt", "desc")));
+      ps.docs.forEach(d => payments.push({ companyId: c.id, id: d.id, ...d.data() }));
     }
-
-    renderPayments(payments.slice(0, 200));
+    paymentsCache = payments;
+    renderPayments(payments.slice(0,200));
   } catch (err) {
-    console.error("loadRecentPayments error:", err);
     tbPayments.innerHTML = `<tr><td colspan="6">Error cargando pagos.</td></tr>`;
   }
 }
-
 
 function renderPayments(arr) {
   if (!tbPayments) return;
@@ -188,47 +195,44 @@ function renderPayments(arr) {
     tr.innerHTML = `<td>${p.createdAt && p.createdAt.seconds ? new Date(p.createdAt.seconds*1000).toLocaleString() : '-'}</td>
       <td>${escapeHtml(p.companyId || '-')}</td>
       <td>${money(p.amount||0)}</td>
-      <td>${p.monthsPaid||p.months||0}</td>
-      <td>${escapeHtml(p.affiliateId||p.sellerId||'-')}</td>
+      <td>${p.monthsPaid||0}</td>
+      <td>${escapeHtml(p.affiliateId||'-')}</td>
       <td><button class="px-2 py-1 border rounded btnInvoice" data-company="${p.companyId}" data-id="${p.id}">PDF</button></td>`;
     tbPayments.appendChild(tr);
   });
-
-  $$(".btnInvoice").forEach(b => b.onclick = async (e) => {
-    const companyId = b.dataset.company;
-    const paymentId = b.dataset.id;
-    try {
-      const gen = httpsCallable(functions, "generateInvoice");
-      const res = await gen({ companyId, paymentId });
-      if (res.data && res.data.invoiceBase64) {
-        const bin = atob(res.data.invoiceBase64);
-        const len = bin.length;
-        const buf = new Uint8Array(len);
-        for (let i=0;i<len;i++) buf[i]=bin.charCodeAt(i);
-        const blob = new Blob([buf], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = res.data.filename || `factura_${companyId}_${paymentId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } else {
-        alert("No se recibió PDF del servidor.");
-      }
-    } catch (err) { console.error(err); alert("Error solicitando factura: "+(err.message||err)); }
-  });
 }
 
+/* ========== KPIs ========== */
 function computeKPIs() {
   kCompanies.textContent = companiesCache.length;
-  kRevenue.textContent = 'Usar aggregates server (no disponible localmente)';
+  kRevenue.textContent = money(paymentsCache.reduce((s,p)=>s+Number(p.amount||0),0));
   const totalComm = affiliatesCache.reduce((s,a)=> s + (Number(a.balanceOwed||0)), 0);
   kCommissions.textContent = money(totalComm);
 }
 
-/* Modal handlers */
+/* ========== ESTADÍSTICAS ========== */
+function renderStats() {
+  const ctx = document.getElementById("chartRevenue");
+  if (!ctx) return;
+  const monthly = {};
+  paymentsCache.forEach(p=>{
+    if (p.createdAt?.seconds) {
+      const d = new Date(p.createdAt.seconds*1000);
+      const key = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,"0")}`;
+      monthly[key] = (monthly[key]||0) + (p.amount||0);
+    }
+  });
+  const labels = Object.keys(monthly).sort();
+  const data = labels.map(l=>monthly[l]);
+
+  new Chart(ctx,{
+    type:"line",
+    data:{ labels, datasets:[{ label:"Ingresos", data, borderColor:"rgb(16,185,129)", fill:false }] },
+    options:{ responsive:true }
+  });
+}
+
+/* ========== REGISTRO DE PAGO ========== */
 btnOpen.addEventListener("click", () => modal.classList.remove("hidden"));
 btnCancel.addEventListener("click", () => modal.classList.add("hidden"));
 btnReload.addEventListener("click", () => loadAll());
@@ -250,8 +254,8 @@ async function submitRegister() {
 
   try {
     const recordPayment = httpsCallable(functions, "recordPayment");
-    const res = await recordPayment({ companyId, amount, monthsPaid, promoCode, affiliateId, sellerId: affiliateId, createdByNote: note });
-    if (res.data && res.data.success) {
+    const res = await recordPayment({ companyId, amount, monthsPaid, promoCode, affiliateId, createdByNote: note });
+    if (res.data?.success) {
       alert("Pago registrado: " + res.data.paymentId);
       modal.classList.add("hidden");
       await loadAll();
@@ -259,14 +263,18 @@ async function submitRegister() {
       alert("Respuesta inesperada del servidor.");
     }
   } catch (err) {
-    console.error("submitRegister error", err);
     alert("Error registrando pago: "+(err.message||err));
   }
 }
 
-function escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c])); }
+/* ========== UTILS ========== */
+function escapeHtml(s) { 
+  if (!s) return ''; 
+  return String(s).replace(/[&<>"'`=\/]/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c]
+  )); 
+}
 
-/* bootstrap load */
 document.addEventListener("DOMContentLoaded", () => {
-  // nothing extra; auth triggers load
+  // auth dispara load
 });
