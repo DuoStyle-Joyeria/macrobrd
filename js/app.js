@@ -233,19 +233,22 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-/* ======================
-   ROLE handling — AQUI ELIJO QUE VE CADA EMPLEADO  Y QUE NO
-   ====================== */
 function applyRoleVisibility() {
-  const saldoTotalElement = document.getElementById("saldo-total");
+  const cajaEmpresa = document.querySelector(".caja-empresa");
 
   if (userRole === "empleado") {
-    // 🔒 Reemplazar saldo total por ventas del día actual
-    if (saldoTotalElement) {
-      loadTodaySales(saldoTotalElement);
+    // 🔒 Mostrar solo ventas de hoy en la caja empresa
+    if (cajaEmpresa) {
+      cajaEmpresa.innerHTML = `
+        <h3>💰 Ventas de hoy</h3>
+        <p id="ventas-hoy-valor" style="font-size:1.5rem;font-weight:bold;color:#10b981;">
+          Cargando...
+        </p>
+      `;
+      cargarVentasHoy();
     }
 
-    // 🔒 Mostrar solo ventas/egresos/ingresos/inventario
+    // 🔒 Mostrar solo pestañas permitidas
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
       btn.style.display = (t === "ventas" || t === "egresos" || t === "ingresos" || t === "inventario") ? "" : "none";
@@ -253,23 +256,19 @@ function applyRoleVisibility() {
     $("[data-tab='ventas']").click();
 
   } else {
-    // 🔓 Jefes: acceso total
+    // 🔓 Jefes: acceso completo (dejas la caja original normal)
     $$(".tab-btn").forEach(btn => btn.style.display = "");
-    if (saldoTotalElement) {
-      // aquí ya tendrás tu lógica actual para mostrar el saldo real
-      saldoTotalElement.style.display = "";
-    }
   }
 }
 
 /* ======================
-   Función para traer SOLO ventas del día actual
+   Función que calcula SOLO ventas de hoy
    ====================== */
-async function loadTodaySales(saldoTotalElement) {
+async function cargarVentasHoy() {
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // inicio del día
+  today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1); // siguiente día
+  tomorrow.setDate(today.getDate() + 1);
 
   try {
     const salesRef = collection(db, "ventas");
@@ -285,14 +284,15 @@ async function loadTodaySales(saldoTotalElement) {
       totalHoy += doc.data().monto || 0;
     });
 
-    // 👷‍♂️ Reemplazar el contenido del saldo con las ventas de hoy
-    saldoTotalElement.textContent = `Ventas de hoy: $${totalHoy.toFixed(2)}`;
-    saldoTotalElement.style.display = "";
+    const ventasHoyValor = document.getElementById("ventas-hoy-valor");
+    if (ventasHoyValor) {
+      ventasHoyValor.textContent = `$${totalHoy.toLocaleString("es-CO")}`;
+    }
   } catch (err) {
     console.error("❌ Error al cargar ventas del día:", err);
-    if (saldoTotalElement) {
-      saldoTotalElement.textContent = "Error cargando ventas de hoy";
-      saldoTotalElement.style.display = "";
+    const ventasHoyValor = document.getElementById("ventas-hoy-valor");
+    if (ventasHoyValor) {
+      ventasHoyValor.textContent = "Error al cargar";
     }
   }
 }
