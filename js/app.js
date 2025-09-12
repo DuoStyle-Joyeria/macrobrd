@@ -237,17 +237,66 @@ onAuthStateChanged(auth, async (user) => {
    ROLE handling — AQUI ELIJO QUE VE CADA EMPLEADO  Y QUE NO
    ====================== */
 function applyRoleVisibility() {
+  const saldoTotalElement = document.getElementById("saldo-total");
+
   if (userRole === "empleado") {
-    // empleado: solo ventas y egresos/ingresos (puedes cambiar)
+    // 🔒 Reemplazar saldo total por ventas del día actual
+    if (saldoTotalElement) {
+      loadTodaySales(saldoTotalElement);
+    }
+
+    // 🔒 Mostrar solo ventas/egresos/ingresos/inventario
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
       btn.style.display = (t === "ventas" || t === "egresos" || t === "ingresos" || t === "inventario") ? "" : "none";
     });
     $("[data-tab='ventas']").click();
+
   } else {
+    // 🔓 Jefes: acceso total
     $$(".tab-btn").forEach(btn => btn.style.display = "");
+    if (saldoTotalElement) {
+      // aquí ya tendrás tu lógica actual para mostrar el saldo real
+      saldoTotalElement.style.display = "";
+    }
   }
 }
+
+/* ======================
+   Función para traer SOLO ventas del día actual
+   ====================== */
+async function loadTodaySales(saldoTotalElement) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // inicio del día
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1); // siguiente día
+
+  try {
+    const salesRef = collection(db, "ventas");
+    const q = query(
+      salesRef,
+      where("fecha", ">=", today),
+      where("fecha", "<", tomorrow)
+    );
+    const querySnapshot = await getDocs(q);
+
+    let totalHoy = 0;
+    querySnapshot.forEach(doc => {
+      totalHoy += doc.data().monto || 0;
+    });
+
+    // 👷‍♂️ Reemplazar el contenido del saldo con las ventas de hoy
+    saldoTotalElement.textContent = `Ventas de hoy: $${totalHoy.toFixed(2)}`;
+    saldoTotalElement.style.display = "";
+  } catch (err) {
+    console.error("❌ Error al cargar ventas del día:", err);
+    if (saldoTotalElement) {
+      saldoTotalElement.textContent = "Error cargando ventas de hoy";
+      saldoTotalElement.style.display = "";
+    }
+  }
+}
+
 
 /* ======================
    TABS UI
