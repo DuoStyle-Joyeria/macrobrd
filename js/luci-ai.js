@@ -104,10 +104,10 @@ function createLuciUI() {
   `;
   document.body.appendChild(root);
 
-  document.getElementById("luci-close").onclick = () => {
-    chatHistory = []; // limpiar historial al cerrar
-    root.remove();
-  };
+document.getElementById("luci-close").onclick = () => {
+  root.remove(); // solo cerrar la ventana visual
+};
+
 
   const msgs = document.getElementById("luci-messages");
   const inp = document.getElementById("luci-input");
