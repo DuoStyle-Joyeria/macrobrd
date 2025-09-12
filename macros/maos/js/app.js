@@ -1,4 +1,4 @@
-/* app.js (reemplaza todo el archivo js/app.js con esto) */
+
 
 /**************************************************************************
  * FIREBASE CONFIG
@@ -12,7 +12,6 @@ const firebaseConfig = {
   appId: "1:4630065257:web:11b7b0a0ac2fa776bbf2f8",
   measurementId: "G-FW6QEJMZKT"
 };
-
 
 /* ======================
    IMPORTS (Firebase modular SDK)
@@ -234,21 +233,32 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-/* ======================
-   ROLE handling — AQUI ELIJO QUE VE CADA EMPLEADO  Y QUE NO
-   ====================== */
 function applyRoleVisibility() {
   if (userRole === "empleado") {
-    // empleado: solo ventas y egresos/ingresos (puedes cambiar)
+    // 🔒 Limitar pestañas visibles
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
-      btn.style.display = (t === "ventas" || t === "egresos" || t === "ingresos" || t === "inventario") ? "" : "none";
+      btn.style.display = (t === "ventas" || t === "ingresos" || t === "inventario") ? "" : "none";
     });
     $("[data-tab='ventas']").click();
+
+    // 🔒 Modificar la tarjeta de "Caja Empresa"
+    const cajaTitle = document.querySelector(".bg-white .text-sm.text-slate-500"); 
+    const cajaValor = document.getElementById("kpiCajaEmpresa");
+    const cajaBotones = cajaValor?.nextElementSibling; // div que contiene los botones
+    const cajaRange = document.getElementById("kpiCajaRangeResult");
+
+    if (cajaTitle && cajaValor) {
+      cajaTitle.textContent = "💰 Ventas de hoy";
+      cajaValor.textContent = "$0"; // valor inicial
+    }
+    if (cajaBotones) cajaBotones.style.display = "none"; // 🔥 Oculta los botones
+    if (cajaRange) cajaRange.style.display = "none";   // 🔥 Oculta el texto de rango
   } else {
     $$(".tab-btn").forEach(btn => btn.style.display = "");
   }
 }
+
 
 /* ======================
    TABS UI
@@ -467,7 +477,7 @@ function setupPosHandlers() {
   $("#btnClearCart").onclick   = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
   $("#btnSubmitSale").onclick  = submitSaleHandler;
   $("#btnExportSalesRange")?.addEventListener("click", exportSalesRangePrompt);
-  createCartLine(); // línea por defecto
+  
 }
 
 function createCartLine() {
@@ -763,7 +773,6 @@ async function deleteSale(ventaId) {
       }
 
       const totalVenta = Number(venta.total || 0);
-      // categoria no definida aquí (old code referenced 'cat'), use fallback
       const movRef = doc(collection(db, "companies", companyId, "movements"));
       tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: totalVenta, desc: `Eliminación venta ID ${ventaId}`, saleId: ventaId, createdAt: serverTimestamp() });
 
@@ -819,10 +828,8 @@ function renderSalesTable() {
     downloadSalePdf(id, sale);
   });
 
-  // aplicar paginación
   aplicarPaginacion("tbVentas", "pagerVentas", 10);
 }
-
 /* ======================
    PDF helpers (ventas / egresos / ingresos / movimientos)
    ====================== */
@@ -1335,8 +1342,6 @@ function renderMovimientosTable(arr) {
   aplicarPaginacion("tbMovimientos", "pagerMovimientos", 15);
 }
 
-
-
 /**
  * Exportar movimientos a PDF usando jsPDF + autoTable.
  * Si no pasas `movs`, exporta `lastMovimientosRendered`.
@@ -1671,10 +1676,9 @@ function normalizeForSearch(str) {
    BOOT
    ====================== */
 window.addEventListener("DOMContentLoaded", () => {
-  try { setupPosHandlers(); } catch(e) { /* ignore */ }
+  try { setupPosHandlers(); } catch(e) {}
   try { setupCajaControls(); } catch(e) {}
 });
-
 window._dbg = { db, inventoryCache, salesCache, runTransaction };
 
 
@@ -1743,9 +1747,7 @@ function aplicarPaginacion(tableId, pagerId, pageSize = 10) {
       pager.appendChild(container);
     }
   }
-
   // inicial
   mostrarPagina(1);
 }
-
 /* FIN app.js */

@@ -20,10 +20,25 @@
     .search-suggestion { cursor: pointer; padding: 6px; border-bottom: 1px solid #eee; }
     .search-suggestion:hover { background: #f1f5f9; }
     .kbd { background:#111827; color:#fff; padding:2px 6px; border-radius:4px; font-size:12px; }
+    /* Small utility for disabled visual state used by JS */
+    .luci-temp-disabled { opacity: .55; pointer-events: none; }
   </style>
 
   <!-- Luci identity CSS (debe estar después de Tailwind para overrides) -->
   <link rel="stylesheet" href="css/luci.css">
+
+<!-- Cargar script de Luci -->
+<script type="module" src="/js/luci-ai.js"></script>
+
+<!-- Botón para abrir Luci -->
+<button onclick="openLuciChat()" 
+        style="position:fixed;bottom:20px;right:20px;background:#2563eb;color:#fff;
+               border:none;padding:12px 18px;border-radius:50px;cursor:pointer;
+               font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.2)">
+  💬 Chat con Luci
+</button>
+
+
 </head>
 <body class="bg-slate-50 text-slate-800 luci">
   <div id="app" class="max-w-6xl mx-auto p-4">
@@ -34,7 +49,7 @@
       <input id="luci-welcome-toggle" class="luci-hidden-checkbox" type="checkbox" aria-hidden="true" />
       <div class="luci-welcome-overlay" role="dialog" aria-labelledby="luciWelcomeTitle" aria-describedby="luciWelcomeDesc">
         <img src="assets/logo luci.png" alt="Logo Luci" />
-        <h2 id="luciWelcomeTitle">Bienvenido a Luci</h2>
+        <h2 id="luciWelcomeTitle">Hola Maos - Bienvenido a Luci</h2>
         <p id="luciWelcomeDesc">Tu asistente virtual para organizar y hacer crecer tu negocio. Luci te ayudará con inventarios, ventas, finanzas y estadísticas — todo de forma simple.</p>
         <label for="luci-welcome-toggle" class="luci-welcome-cta" role="button">Comenzar</label>
         <label for="luci-welcome-toggle" class="luci-welcome-skip">Omitir</label>
@@ -585,9 +600,190 @@
   })();
   </script>
 
+  <!-- ===== CORRECCIONES PARA ERRORES 1 y 2 (NO modifica js/app.js) ===== -->
+  <script>
+  (function(){
+    // Small helper: show toast if available
+    function toast(msg, type='info', opts={}) {
+      if (window.showLuciToast) return window.showLuciToast(msg, type, opts);
+      if (window.luciNotify) return window.luciNotify(msg, type, opts);
+      try { alert(msg); } catch(e){}
+    }
+
+    // Debounce / single-click guard for specific buttons.
+    function guardButtonClicks(selector, ms = 1200) {
+      const el = document.getElementById(selector);
+      if (!el) return;
+      // Capture phase so we can block quick repeated clicks before other handlers run.
+      el.addEventListener('click', function handler(e) {
+        // If currently disabled, block and stop propagation
+        if (el.dataset.luciDisabled === '1') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
+        // First click -> mark disabled and re-enable after ms
+        el.dataset.luciDisabled = '1';
+        el.classList.add('luci-temp-disabled');
+        setTimeout(() => {
+          delete el.dataset.luciDisabled;
+          el.classList.remove('luci-temp-disabled');
+        }, ms);
+        // allow event to continue to other handlers (so original app.js logic runs once)
+      }, true); // capture: true
+    }
+
+    // Clean up empty cart rows on start and whenever cartBody mutates.
+    function cleanCartEmptyRows() {
+      const cartBody = document.getElementById('cartBody');
+      if (!cartBody) return;
+
+      function isRowEmpty(tr) {
+        // If any input/select/textarea within the row has a non-empty value => not empty
+        const inputs = tr.querySelectorAll('input, select, textarea');
+        if (inputs.length === 0) {
+          // If no form controls, check visible text content heuristic
+          const txt = tr.textContent.replace(/\s+/g,'').trim();
+          return txt.length === 0;
+        }
+        for (const el of inputs) {
+          // checkbox/radio: check checked; other inputs: value
+          const type = (el.type || '').toLowerCase();
+          if ((type === 'checkbox' || type === 'radio') && el.checked) return false;
+          if (el.value != null && String(el.value).trim() !== '' && String(el.value).trim() !== '0') return false;
+        }
+        // Also check if there are selects with meaningful option selected (not placeholder)
+        const selects = tr.querySelectorAll('select');
+        for (const s of selects) {
+          if (s.value && String(s.value).trim() !== '') return false;
+        }
+        return true;
+      }
+
+      // Remove any rows that are clearly empty. We keep at most zero empty rows to avoid initial duplicates.
+      Array.from(cartBody.children).forEach(tr => {
+        try {
+          if (isRowEmpty(tr)) {
+            tr.remove();
+          }
+        } catch(e){}
+      });
+    }
+
+    // Deduplicate immediate duplicate inventory rows added to the UI.
+    function setupInventoryDedupe() {
+      const tb = document.getElementById('tbInventory');
+      if (!tb) return;
+
+      const recent = new Map(); // signature -> timestamp
+      function signatureForRow(tr) {
+        // create a compact signature using text of its cells (trim and normalize)
+        return Array.from(tr.children || []).map(td => td.textContent.replace(/\s+/g,' ').trim()).join('||').trim();
+      }
+
+      const mo = new MutationObserver(muts => {
+        for (const m of muts) {
+          if (m.addedNodes && m.addedNodes.length > 0) {
+            for (const node of m.addedNodes) {
+              if (!(node instanceof HTMLElement)) continue;
+              const sig = signatureForRow(node);
+              if (!sig) continue;
+              const now = Date.now();
+              // If we saw the exact same signature very recently, remove this newly added duplicate
+              if (recent.has(sig) && (now - recent.get(sig) < 1600)) {
+                // remove duplicate row (UI-level protection)
+                try { node.remove(); } catch(e){}
+                toast('Registro duplicado detectado y eliminado (protección cliente).', 'warn', { duration: 2600 });
+                continue;
+              }
+              // Otherwise store signature temporarily
+              recent.set(sig, now);
+              // cleanup this signature after a short window
+              setTimeout(() => { recent.delete(sig); }, 2200);
+            }
+          }
+        }
+      });
+
+      mo.observe(tb, { childList: true, subtree: false });
+    }
+
+    // Also protect product creation button and form from quick double-submits.
+    function setupCreateProductProtection() {
+      const btn = document.getElementById('btnCreateProduct');
+      const form = document.getElementById('formProduct');
+      if (!btn && !form) return;
+
+      // Guard the button
+      guardButtonClicks('btnCreateProduct', 1600);
+
+      // Also guard the form submit (in case app.js uses submit)
+      if (form) {
+        form.addEventListener('submit', function(e){
+          if (form.dataset.luciSubmitting === '1') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return;
+          }
+          form.dataset.luciSubmitting = '1';
+          // re-enable after a short time to permit normal flow later
+          setTimeout(()=> delete form.dataset.luciSubmitting, 1600);
+        }, true);
+      }
+    }
+
+    // Protect add-to-cart button from very quick repeated additions that cause duplicates.
+    function setupAddCartProtection() {
+      guardButtonClicks('btnAddCartLine', 800);
+      // also guard clear cart to avoid accidental double-exec
+      guardButtonClicks('btnClearCart', 600);
+    }
+
+    // Run fixes shortly after page & app.js initialization.
+    function runFixes() {
+      try {
+        // initial clean
+        cleanCartEmptyRows();
+        // observe cartBody so added empty rows get pruned
+        const cartBody = document.getElementById('cartBody');
+        if (cartBody) {
+          const mo = new MutationObserver(() => {
+            // small microtask delay to allow app.js to add children then we prune
+            setTimeout(cleanCartEmptyRows, 20);
+          });
+          mo.observe(cartBody, { childList: true, subtree: false });
+        }
+
+        // inventory dedupe
+        setupInventoryDedupe();
+
+        // protect product create, add-to-cart, clear
+        setupCreateProductProtection();
+        setupAddCartProtection();
+
+        // as safety: if on initial load there are multiple empty rows, remove them (run again a bit later)
+        setTimeout(cleanCartEmptyRows, 800);
+      } catch(e){
+        console.warn('Luci fixes script error', e);
+      }
+    }
+
+    // Wait slightly to allow js/app.js to attach its listeners and possibly render initial UI.
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(runFixes, 700));
+    } else {
+      setTimeout(runFixes, 700);
+    }
+
+    // Expose a debugging helper (optional)
+    window._luciClientFixes = {
+      run: runFixes,
+      cleanCartEmptyRows
+    };
+  })();
+  </script>
+
   <!-- FIN -->
 </body>
 </html>
-
-
 
