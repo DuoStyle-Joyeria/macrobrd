@@ -234,66 +234,28 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function applyRoleVisibility() {
-  const cajaEmpresa = document.querySelector(".caja-empresa");
-
   if (userRole === "empleado") {
-    // 🔒 Mostrar solo ventas de hoy en la caja empresa
-    if (cajaEmpresa) {
-      cajaEmpresa.innerHTML = `
-        <h3>💰 Ventas de hoy</h3>
-        <p id="ventas-hoy-valor" style="font-size:1.5rem;font-weight:bold;color:#10b981;">
-          Cargando...
-        </p>
-      `;
-      cargarVentasHoy();
-    }
-
-    // 🔒 Mostrar solo pestañas permitidas
+    // 🔒 Limitar pestañas visibles
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
       btn.style.display = (t === "ventas" || t === "egresos" || t === "ingresos" || t === "inventario") ? "" : "none";
     });
     $("[data-tab='ventas']").click();
 
+    // 🔒 Modificar la tarjeta de "Caja Empresa"
+    const cajaTitle = document.querySelector(".bg-white .text-sm.text-slate-500"); 
+    const cajaValor = document.getElementById("kpiCajaEmpresa");
+    const cajaBotones = cajaValor?.nextElementSibling; // div que contiene los botones
+    const cajaRange = document.getElementById("kpiCajaRangeResult");
+
+    if (cajaTitle && cajaValor) {
+      cajaTitle.textContent = "💰 Ventas de hoy";
+      cajaValor.textContent = "$0"; // valor inicial
+    }
+    if (cajaBotones) cajaBotones.style.display = "none"; // 🔥 Oculta los botones
+    if (cajaRange) cajaRange.style.display = "none";   // 🔥 Oculta el texto de rango
   } else {
-    // 🔓 Jefes: acceso completo (dejas la caja original normal)
     $$(".tab-btn").forEach(btn => btn.style.display = "");
-  }
-}
-
-/* ======================
-   Función que calcula SOLO ventas de hoy
-   ====================== */
-async function cargarVentasHoy() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-
-  try {
-    const salesRef = collection(db, "ventas");
-    const q = query(
-      salesRef,
-      where("fecha", ">=", today),
-      where("fecha", "<", tomorrow)
-    );
-    const querySnapshot = await getDocs(q);
-
-    let totalHoy = 0;
-    querySnapshot.forEach(doc => {
-      totalHoy += doc.data().monto || 0;
-    });
-
-    const ventasHoyValor = document.getElementById("ventas-hoy-valor");
-    if (ventasHoyValor) {
-      ventasHoyValor.textContent = `$${totalHoy.toLocaleString("es-CO")}`;
-    }
-  } catch (err) {
-    console.error("❌ Error al cargar ventas del día:", err);
-    const ventasHoyValor = document.getElementById("ventas-hoy-valor");
-    if (ventasHoyValor) {
-      ventasHoyValor.textContent = "Error al cargar";
-    }
   }
 }
 
