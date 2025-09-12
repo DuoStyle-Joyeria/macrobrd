@@ -158,22 +158,27 @@ function populateAffiliateSelect() {
 
 async function loadRecentPayments() {
   try {
-    const q = query(collection(db, "companies"), orderBy("createdAt","desc"));
-    // We'll get recent payments via collectionGroup 'payments'
-    const paymentsSnap = await getDocs(query(collection(db, "companies").doc().collectionGroup?.('payments') || collection(db, "companies"))); 
-    // Note: above line is placeholder; collectionGroup is not trivial in client - we'll instead fetch per-company small set (simpler)
-    // For this admin panel immediate usage: we'll load first 50 from each company (inefficient for big scale)
     const payments = [];
+
     for (const c of companiesCache) {
-      const ps = await getDocs(query(collection(db, "companies").doc(c.id).collection("payments"), orderBy("createdAt","desc")));
-      ps.docs.forEach(d => payments.push({ companyId: c.id, id: d.id, ...d.data() }));
+      const companyRef = doc(db, "companies", c.id);
+      const paymentsCol = collection(companyRef, "payments");
+      const ps = await getDocs(query(paymentsCol, orderBy("createdAt", "desc")));
+      
+      ps.docs.forEach(d => payments.push({
+        companyId: c.id,
+        id: d.id,
+        ...d.data()
+      }));
     }
-    renderPayments(payments.slice(0,200));
+
+    renderPayments(payments.slice(0, 200));
   } catch (err) {
     console.error("loadRecentPayments error:", err);
     tbPayments.innerHTML = `<tr><td colspan="6">Error cargando pagos.</td></tr>`;
   }
 }
+
 
 function renderPayments(arr) {
   if (!tbPayments) return;
