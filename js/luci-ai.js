@@ -23,6 +23,8 @@ try {
   console.log("Firebase ya inicializado, reutilizando instancia.");
 }
 const functions = getFunctions(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 // 🧪 Si estás en localhost, usar el emulador
 if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
@@ -30,16 +32,17 @@ if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
   console.log("✅ Conectado al emulador de Functions");
 }
 
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// 🌍 Guardar el companyId detectado
+// 🌍 Variables globales
 let currentCompanyId = null;
+let currentUserId = null;
+let chatHistory = []; // solo en memoria
 
-// 📡 Escuchar cambios de login y cargar el companyId del usuario
+// 📡 Escuchar login/logout
 onAuthStateChanged(auth, async (user) => {
   if (user) {
+    currentUserId = user.uid;
     console.log("✅ Usuario logueado:", user.uid);
+
     try {
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
@@ -47,41 +50,35 @@ onAuthStateChanged(auth, async (user) => {
         currentCompanyId = userSnap.data().companyId || null;
         console.log("✅ Company ID detectado:", currentCompanyId);
       } else {
-        console.warn("⚠️ No se encontró el perfil del usuario en Firestore.");
+        console.warn("⚠️ Usuario sin companyId en Firestore.");
       }
     } catch (err) {
       console.error("❌ Error al obtener companyId:", err);
     }
   } else {
     console.log("❌ Usuario no autenticado");
+    currentUserId = null;
     currentCompanyId = null;
+    chatHistory = []; // limpiar historial al cerrar sesión
   }
 });
 
-// 🔒 Escapar HTML para los mensajes
+// 🔒 Escapar HTML
 function escapeHtml(s) {
   if (!s) return "";
   return String(s).replace(/[&<>"'`=\/]/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-    "/": "&#x2F;",
-    "`": "&#x60;",
-    "=": "&#x3D;",
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;",
+    "'": "&#39;", "/": "&#x2F;", "`": "&#x60;", "=": "&#x3D;"
   }[c]));
 }
 
-// 📜 Historial persistente en localStorage
-let chatHistory = JSON.parse(localStorage.getItem("luciChatHistory")) || [];
-
-function saveHistory() {
-  localStorage.setItem("luciChatHistory", JSON.stringify(chatHistory));
-}
-
-// 🪄 Crear la UI del chat de Luci
+// 🪄 Crear UI del chat
 function createLuciUI() {
+  // 🚫 No abrir si no está logueado
+  if (!currentUserId) {
+    alert("⚠️ Debes iniciar sesión para usar Luci.");
+    return;
+  }
   if (document.getElementById("luci-chat-root")) return;
 
   const root = document.createElement("div");
@@ -107,9 +104,8 @@ function createLuciUI() {
   `;
   document.body.appendChild(root);
 
-  // Cerrar chat
   document.getElementById("luci-close").onclick = () => {
-    saveHistory();
+    chatHistory = []; // limpiar historial al cerrar
     root.remove();
   };
 
@@ -117,7 +113,7 @@ function createLuciUI() {
   const inp = document.getElementById("luci-input");
   const sendBtn = document.getElementById("luci-send");
 
-  // Función para mostrar mensajes
+  // mostrar mensajes
   function appendMessage(who, text) {
     const div = document.createElement("div");
     div.style.marginBottom = "8px";
@@ -129,15 +125,9 @@ function createLuciUI() {
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
     chatHistory.push({ who, text });
-    saveHistory();
   }
 
-  // 🔁 Cargar historial previo si lo hay
-  if (chatHistory.length > 0) {
-    chatHistory.forEach((m) => appendMessage(m.who, m.text));
-  }
-
-  // Detectar intención básica
+  // detectar intención
   function detectIntent(text) {
     const lower = text.toLowerCase();
     if (lower.includes("venta") || lower.includes("ingreso") || lower.includes("egreso") || lower.includes("producto")) {
@@ -146,13 +136,18 @@ function createLuciUI() {
     return "general";
   }
 
-  // Enviar mensaje al backend
+  // enviar mensaje
   async function send() {
     const text = inp.value.trim();
     if (!text) return;
     inp.value = "";
     appendMessage("Tú", text);
-    appendMessage("Luci", "Pensando... 🤔");
+
+    const thinkingDiv = document.createElement("div");
+    thinkingDiv.textContent = "Luci: Pensando... 🤔";
+    thinkingDiv.style.margin = "8px 0";
+    msgs.appendChild(thinkingDiv);
+    msgs.scrollTop = msgs.scrollHeight;
 
     try {
       const luciCall = httpsCallable(functions, "luciChat");
@@ -164,14 +159,11 @@ function createLuciUI() {
         intent
       });
 
-      // Reemplazar "Pensando..." con la respuesta real
-      const last = msgs.lastChild;
-      if (last) last.remove();
+      thinkingDiv.remove();
       appendMessage("Luci", res.data.answer || "No encontré respuesta 😕");
     } catch (err) {
       console.error("Luci error", err);
-      const last = msgs.lastChild;
-      if (last) last.remove();
+      thinkingDiv.remove();
       appendMessage("Luci", "⚠️ Error al consultar a Luci. Intenta de nuevo.");
     }
   }
@@ -180,5 +172,5 @@ function createLuciUI() {
   inp.onkeydown = (e) => { if (e.key === "Enter") send(); };
 }
 
-// 🌍 Exponer función global para abrir el chat
+// 🌍 Exponer función global
 window.openLuciChat = createLuciUI;
