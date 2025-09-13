@@ -241,22 +241,24 @@ async function applyRoleVisibility(companyId) {
     }
 
     // 🔒 Limitar pestañas visibles SOLO para empleado
+    const allowedTabs = ["ventas", "inventario", "egresos"];
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
-      btn.style.display = (t === "ventas" || t === "egresos" || t === "inventario") ? "" : "none";
+      btn.style.display = allowedTabs.includes(t) ? "" : "none";
     });
     $("[data-tab='ventas']").click();
 
-    // 🔒 Modificar tarjeta de "Caja Empresa" → ahora será "Ventas de hoy"
-    const cajaTitle = document.querySelector(".bg-white .text-sm.text-slate-500"); 
-    const cajaValor = document.getElementById("kpiCajaEmpresa");
-    const cajaBotones = cajaValor?.nextElementSibling; 
-    const cajaRange = document.getElementById("kpiCajaRangeResult");
+    // 🎯 Asegurarnos de seleccionar SOLO la tarjeta de "Caja Empresa"
+    const cajaCard = document.querySelector("#kpiCajaEmpresa")?.closest(".bg-white");
+    const cajaTitle = cajaCard?.querySelector(".text-sm.text-slate-500");
+    const cajaValor = cajaCard?.querySelector("#kpiCajaEmpresa");
+    const cajaBotones = cajaCard?.querySelector(".mt-2.text-xs");
+    const cajaRange = cajaCard?.querySelector("#kpiCajaRangeResult");
 
     if (cajaTitle && cajaValor) {
       cajaTitle.textContent = "💰 Ventas de hoy";
       cajaValor.textContent = "Cargando...";
-      // 🚫 Bloquear este bloque para que otras funciones (ej: subscribeBalances) no lo sobreescriban
+      // 🚫 Bloquear este bloque para que otras funciones no lo sobreescriban
       cajaValor.setAttribute("data-locked", "true");
     }
     if (cajaBotones) cajaBotones.style.display = "none";
@@ -300,6 +302,7 @@ async function applyRoleVisibility(companyId) {
     console.warn("⚠️ userRole no definido todavía, no se aplicó visibilidad de pestañas.");
   }
 }
+
 
 
 
