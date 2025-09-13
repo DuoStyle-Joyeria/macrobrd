@@ -235,6 +235,11 @@ onAuthStateChanged(auth, async (user) => {
 
 async function applyRoleVisibility(companyId) {
   if (userRole === "empleado") {
+    if (!companyId) {
+      console.error("❌ No se encontró companyId para este empleado. No se puede cargar ventas de hoy.");
+      return;
+    }
+
     // 🔒 Limitar pestañas visibles
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
@@ -251,43 +256,49 @@ async function applyRoleVisibility(companyId) {
     if (cajaTitle && cajaValor) {
       cajaTitle.textContent = "💰 Ventas de hoy";
       cajaValor.textContent = "Cargando...";
-      // 🚫 Marcar este bloque como "bloqueado"
+      // 🚫 Marcar este bloque como "bloqueado" para que subscribeBalances no lo toque
       cajaValor.setAttribute("data-locked", "true");
     }
     if (cajaBotones) cajaBotones.style.display = "none";
     if (cajaRange) cajaRange.style.display = "none";
 
-    // 🔄 Consultar solo las ventas de HOY
-    try {
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
+    // 🔄 Suscripción en tiempo real SOLO a las ventas de HOY
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
 
+    try {
       const q = query(
         collection(db, "ventas"),
         where("companyId", "==", companyId),
         where("fecha", ">=", today.getTime()),
         where("fecha", "<", tomorrow.getTime())
       );
-      const snapshot = await getDocs(q);
 
-      let totalHoy = 0;
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        totalHoy += data.total || 0;
+      const unsub = onSnapshot(q, snap => {
+        let totalHoy = 0;
+        snap.forEach(doc => {
+          const data = doc.data();
+          totalHoy += data.total || 0;
+        });
+
+        if (cajaValor) cajaValor.textContent = `$${totalHoy.toLocaleString()}`;
       });
 
-      if (cajaValor) cajaValor.textContent = `$${totalHoy.toLocaleString()}`;
+      unsubscribers.push(unsub);
+
     } catch (err) {
       console.error("❌ Error cargando ventas de hoy:", err);
       if (cajaValor) cajaValor.textContent = "$0";
     }
+
   } else {
     // 👑 Admin → mostrar todo normal
     $$(".tab-btn").forEach(btn => btn.style.display = "");
   }
 }
+
 
 
 
