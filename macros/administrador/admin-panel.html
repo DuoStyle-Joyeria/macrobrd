@@ -5,25 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin Panel — Pagos y Planes</title>
 
-  <!-- Tailwind + estilos -->
+  <!-- Tailwind + luci.css -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css">
+  <link rel="stylesheet" href="css/luci.css">
 
-  <!-- Chart.js para gráficas -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="luci bg-slate-50">
-  <div class="max-w-7xl mx-auto p-6">
+
+  <!-- LOGIN / REGISTER OVERLAY (usa el mismo flujo que tu app principal) -->
+  <div id="authOverlay" class="fixed inset-0 z-[999] bg-black/30 flex items-center justify-center p-4">
+    <div class="bg-white rounded p-6 w-full max-w-md shadow">
+      <h2 class="text-xl font-semibold mb-3">Acceso — Panel Administrador</h2>
+
+      <form id="loginForm" class="space-y-3">
+        <input id="loginEmail" type="email" placeholder="Email" class="w-full border rounded p-2" required>
+        <input id="loginPass" type="password" placeholder="Contraseña" class="w-full border rounded p-2" required>
+        <div class="flex gap-2">
+          <button id="btnLogin" class="px-3 py-2 bg-slate-900 text-white rounded">Iniciar sesión</button>
+          <button id="btnShowRegister" type="button" class="px-3 py-2 border rounded">Crear cuenta (admin)</button>
+        </div>
+      </form>
+
+      <div id="registerBox" class="mt-4 hidden">
+        <h3 class="font-semibold">Crear administrador</h3>
+        <form id="registerForm" class="space-y-3">
+          <input id="regName" type="text" placeholder="Tu nombre" class="w-full border rounded p-2" required>
+          <input id="regEmail" type="email" placeholder="Email" class="w-full border rounded p-2" required>
+          <input id="regPass" type="password" placeholder="Contraseña" class="w-full border rounded p-2" required>
+          <div class="flex justify-end gap-2">
+            <button id="btnCancelRegister" type="button" class="px-3 py-2 border rounded">Cancelar</button>
+            <button id="btnRegister" class="px-3 py-2 bg-emerald-600 text-white rounded">Crear cuenta</button>
+          </div>
+        </form>
+      </div>
+
+      <p class="text-xs text-slate-500 mt-3">Si ya tienes cuenta, inicia sesión. El registro crea una empresa por defecto (si no existe).</p>
+    </div>
+  </div>
+
+  <!-- Panel principal -->
+  <div id="app" class="max-w-7xl mx-auto p-6 hidden">
     <!-- HEADER -->
     <header class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-bold">Panel Administrador</h1>
-      <div class="flex gap-2">
+      <div class="flex gap-2 items-center">
+        <div id="loggedAs" class="text-sm text-slate-600"></div>
         <button id="btnReload" class="px-3 py-2 bg-slate-900 text-white rounded">Recargar</button>
         <button id="btnOpenRegister" class="px-3 py-2 bg-emerald-600 text-white rounded">Registrar Pago</button>
+        <button id="btnLogout" class="px-3 py-2 border rounded">Salir</button>
       </div>
     </header>
 
-    <!-- NAVIGATION TABS -->
+    <!-- NAV -->
     <nav class="mb-6 border-b flex gap-4">
       <button class="tablink py-2 px-4 border-b-2 border-transparent hover:border-emerald-600" data-tab="dashboard">Dashboard</button>
       <button class="tablink py-2 px-4 border-b-2 border-transparent hover:border-emerald-600" data-tab="empresas">Empresas</button>
@@ -58,8 +93,13 @@
 
     <!-- AFILIADOS -->
     <section id="tab-afiliados" class="tabcontent hidden">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="font-semibold">Afiliados / Vendedores</h2>
+        <div>
+          <button id="btnNewAffiliate" class="px-3 py-2 bg-emerald-600 text-white rounded">Nuevo afiliado</button>
+        </div>
+      </div>
       <div class="bg-white p-4 rounded shadow">
-        <h2 class="font-semibold mb-2">Afiliados / Vendedores</h2>
         <div class="table-responsive overflow-x-auto">
           <table class="w-full text-sm" id="tblAffiliates">
             <thead>
@@ -116,14 +156,31 @@
     </div>
   </div>
 
+  <!-- MODAL crear afiliado -->
+  <div id="modalAffiliate" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div class="bg-white rounded p-6 w-full max-w-md shadow">
+      <h3 class="font-semibold text-lg mb-3">Crear Afiliado</h3>
+      <form id="formAffiliate" class="space-y-3">
+        <input id="affName" type="text" placeholder="Nombre completo" class="w-full border rounded p-2" required>
+        <input id="affPhone" type="text" placeholder="Teléfono (opcional)" class="w-full border rounded p-2">
+        <input id="affPct" type="number" min="0" max="100" value="30" class="w-full border rounded p-2" placeholder="% comisión">
+        <div class="flex justify-end gap-2">
+          <button type="button" id="btnCancelAffiliate" class="px-3 py-2 border rounded">Cancelar</button>
+          <button id="btnCreateAffiliate" class="px-3 py-2 bg-emerald-600 text-white rounded">Crear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- jsPDF para exportar -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.25/dist/jspdf.plugin.autotable.min.js"></script>
 
-  <!-- Script principal -->
+  <!-- script principal -->
   <script type="module" src="js/admin-panel.js"></script>
+
   <script>
-    // Activar tabs
+    // Activar tabs (cliente)
     document.querySelectorAll(".tablink").forEach(btn=>{
       btn.addEventListener("click", ()=>{
         document.querySelectorAll(".tabcontent").forEach(tab=>tab.classList.add("hidden"));
