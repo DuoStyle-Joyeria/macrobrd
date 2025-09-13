@@ -354,11 +354,22 @@ function subscribeBalances() {
   const ref = doc(db, "companies", companyId, "state", "balances");
   const unsub = onSnapshot(ref, snap => {
     const d = snap.exists() ? snap.data() : {};
-    $("#kpiCajaEmpresa").textContent = money(d.cajaEmpresa || 0);
+
+    if (userRole === "admin") {
+      // 👑 Admin ve todo el saldo de la empresa
+      $("#kpiCajaEmpresa").textContent = money(d.cajaEmpresa || 0);
+    } else {
+      // 👷 Empleado → mantener solo "ventas de hoy"
+      // ⚠️ No sobreescribimos el valor que ya fijó applyRoleVisibility()
+      console.debug("Empleado conectado → se respeta ventas de hoy en lugar de caja total");
+    }
+
+    // Deudas sí puede mostrarse a ambos roles
     $("#kpiDeudas").textContent = money(d.deudasTotales || 0);
   });
   unsubscribers.push(unsub);
 }
+
 
 function updateInventarioKPI() {
   let total = 0;
