@@ -1,4 +1,3 @@
-// functions/index.js
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
@@ -72,12 +71,10 @@ exports.luciChat = onCall(
         throw new HttpsError("invalid-argument", "Falta el mensaje.");
       }
 
-      // ⚡ Inicializar cliente OpenAI
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
 
-      // 🐞 DEBUG MODE
       if (message.toLowerCase() === "debug" && companyId) {
         const companyRef = db.collection("companies").doc(companyId);
         const companySnap = await companyRef.get();
@@ -96,7 +93,6 @@ exports.luciChat = onCall(
 
       let dbAnswer = null;
 
-      // 📊 Consultar Firestore si hay companyId
       if (companyId) {
         try {
           const companyRef = db.collection("companies").doc(companyId);
@@ -107,15 +103,12 @@ exports.luciChat = onCall(
           } else {
             const companyData = companySnap.data();
 
-            // 🔎 Cargar empleados
             const employeesSnap = await companyRef.collection("employees").get();
             const employees = employeesSnap.docs.map((doc) => doc.data());
 
-            // 🔎 Cargar ventas
             const salesSnap = await companyRef.collection("sales").get();
             const sales = salesSnap.docs.map((doc) => doc.data());
 
-            // 🔎 Analizar producto más vendido
             let productoMasVendido = "N/A";
             let cantidadMax = 0;
             if (sales.length > 0) {
@@ -138,15 +131,12 @@ exports.luciChat = onCall(
               }
             }
 
-            // 🔎 Cargar egresos
             const expensesSnap = await companyRef.collection("egresos").get();
             const egresos = expensesSnap.docs.map((doc) => doc.data());
 
-            // 🔎 Cargar ingresos
             const ingresosSnap = await companyRef.collection("ingresos").get();
             const ingresos = ingresosSnap.docs.map((doc) => doc.data());
 
-            // 🔎 Resumen rápido para IA
             dbAnswer = `📊 Empresa: ${companyData.name || "Sin nombre"}
 👥 Empleados: ${employees.length}
 💰 Ventas registradas: ${sales.length}
@@ -160,12 +150,10 @@ exports.luciChat = onCall(
         }
       }
 
-      // 🧠 Preparar prompt para OpenAI
       const prompt = dbAnswer
         ? `El usuario dijo: "${message}". Estos son los datos de la empresa:\n${dbAnswer}\nUsa esta información para responder de forma personalizada.`
         : `El usuario dijo: "${message}". Responde como asistente de negocios aunque no tengas datos de Firestore.`;
 
-      // 🚀 Llamada a OpenAI
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -265,7 +253,6 @@ exports.registerPayment = onCall(async (request) => {
     const newExpiry = new Date(prevExpiry > now ? prevExpiry : now);
     newExpiry.setMonth(newExpiry.getMonth() + months);
 
-    // ✅ Registrar pago
     await companyRef.collection("payments").add({
       amount,
       months,
@@ -275,17 +262,15 @@ exports.registerPayment = onCall(async (request) => {
       createdBy: request.auth.uid,
     });
 
-    // ✅ Actualizar saldo y plan
     await companyRef.update({
       cashBalance: FieldValue.increment(amount),
       planExpiry: newExpiry,
     });
 
-    // ✅ Comisión a afiliado
     if (affiliateId) {
       const affRef = companyRef.collection("affiliates").doc(affiliateId);
       await affRef.update({
-        balance: FieldValue.increment(amount * 0.2), // ejemplo: 20% comisión
+        balance: FieldValue.increment(amount * 0.2),
       });
     }
 
@@ -295,6 +280,9 @@ exports.registerPayment = onCall(async (request) => {
     throw new HttpsError("internal", error.message || "Error interno");
   }
 });
+
+// 👇 Alias para compatibilidad con tu frontend
+exports.recordPayment = exports.registerPayment;
 
 exports.listPayments = onCall(async (request) => {
   try {
@@ -386,7 +374,7 @@ exports.adminResetPassword = onCall(async (request) => {
    6) CLEAN OLD MEMORY
 ============================================================ */
 exports.cleanOldMemory = onSchedule("every 24 hours", async () => {
-  const cutoff = Date.now() - 15 * 24 * 60 * 60 * 1000; // 15 días
+  const cutoff = Date.now() - 15 * 24 * 60 * 60 * 1000;
   const companies = await db.collection("companies").get();
 
   for (const compDoc of companies.docs) {

@@ -254,8 +254,40 @@ function applyRoleVisibility() {
     }
     if (cajaBotones) cajaBotones.style.display = "none"; // 🔥 Oculta los botones
     if (cajaRange) cajaRange.style.display = "none";   // 🔥 Oculta el texto de rango
+
+    // 🔄 Cargar ventas del día actual
+    (async () => {
+      const today = new Date();
+      today.setHours(0,0,0,0); // inicio del día
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1); // fin del día
+
+      try {
+        const q = query(
+          collection(db, "ventas"),
+          where("companyId", "==", currentCompanyId),
+          where("fecha", ">=", today.getTime()),
+          where("fecha", "<", tomorrow.getTime())
+        );
+        const snapshot = await getDocs(q);
+
+        let totalHoy = 0;
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          totalHoy += data.total || 0;
+        });
+
+        if (cajaValor) cajaValor.textContent = `$${totalHoy.toLocaleString()}`;
+      } catch (err) {
+        console.error("❌ Error cargando ventas de hoy:", err);
+        if (cajaValor) cajaValor.textContent = "$0";
+      }
+    })();
+
   } else {
+    // 🔓 Admin → pestañas completas y saldo total normal
     $$(".tab-btn").forEach(btn => btn.style.display = "");
+    // aquí NO tocamos el bloque de "Caja Empresa", porque admin debe ver todo
   }
 }
 
