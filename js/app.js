@@ -233,7 +233,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-function applyRoleVisibility() {
+async function applyRoleVisibility(companyId) {
   if (userRole === "empleado") {
     // 🔒 Limitar pestañas visibles
     $$(".tab-btn").forEach(btn => {
@@ -242,54 +242,54 @@ function applyRoleVisibility() {
     });
     $("[data-tab='ventas']").click();
 
-    // 🔒 Modificar la tarjeta de "Caja Empresa"
+    // 🔒 Modificar tarjeta de "Caja Empresa" → ahora será "Ventas de hoy"
     const cajaTitle = document.querySelector(".bg-white .text-sm.text-slate-500"); 
     const cajaValor = document.getElementById("kpiCajaEmpresa");
-    const cajaBotones = cajaValor?.nextElementSibling; // div que contiene los botones
+    const cajaBotones = cajaValor?.nextElementSibling; 
     const cajaRange = document.getElementById("kpiCajaRangeResult");
 
     if (cajaTitle && cajaValor) {
       cajaTitle.textContent = "💰 Ventas de hoy";
-      cajaValor.textContent = "$0"; // valor inicial
+      cajaValor.textContent = "Cargando...";
+      // 🚫 Marcar este bloque como "bloqueado"
+      cajaValor.setAttribute("data-locked", "true");
     }
-    if (cajaBotones) cajaBotones.style.display = "none"; // 🔥 Oculta los botones
-    if (cajaRange) cajaRange.style.display = "none";   // 🔥 Oculta el texto de rango
+    if (cajaBotones) cajaBotones.style.display = "none";
+    if (cajaRange) cajaRange.style.display = "none";
 
-    // 🔄 Cargar ventas del día actual
-    (async () => {
+    // 🔄 Consultar solo las ventas de HOY
+    try {
       const today = new Date();
-      today.setHours(0,0,0,0); // inicio del día
+      today.setHours(0,0,0,0);
       const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1); // fin del día
+      tomorrow.setDate(today.getDate() + 1);
 
-      try {
-        const q = query(
-          collection(db, "ventas"),
-          where("companyId", "==", currentCompanyId),
-          where("fecha", ">=", today.getTime()),
-          where("fecha", "<", tomorrow.getTime())
-        );
-        const snapshot = await getDocs(q);
+      const q = query(
+        collection(db, "ventas"),
+        where("companyId", "==", companyId),
+        where("fecha", ">=", today.getTime()),
+        where("fecha", "<", tomorrow.getTime())
+      );
+      const snapshot = await getDocs(q);
 
-        let totalHoy = 0;
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          totalHoy += data.total || 0;
-        });
+      let totalHoy = 0;
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        totalHoy += data.total || 0;
+      });
 
-        if (cajaValor) cajaValor.textContent = `$${totalHoy.toLocaleString()}`;
-      } catch (err) {
-        console.error("❌ Error cargando ventas de hoy:", err);
-        if (cajaValor) cajaValor.textContent = "$0";
-      }
-    })();
-
+      if (cajaValor) cajaValor.textContent = `$${totalHoy.toLocaleString()}`;
+    } catch (err) {
+      console.error("❌ Error cargando ventas de hoy:", err);
+      if (cajaValor) cajaValor.textContent = "$0";
+    }
   } else {
-    // 🔓 Admin → pestañas completas y saldo total normal
+    // 👑 Admin → mostrar todo normal
     $$(".tab-btn").forEach(btn => btn.style.display = "");
-    // aquí NO tocamos el bloque de "Caja Empresa", porque admin debe ver todo
   }
 }
+
+
 
 
 /* ======================
