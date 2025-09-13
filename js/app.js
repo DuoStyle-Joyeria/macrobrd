@@ -389,37 +389,6 @@ function updateInventarioKPI() {
 }
 
 
-function subscribeSalesHoy(companyId) {
-  if (!companyId) {
-    console.error("❌ No se puede suscribir a ventas de hoy sin companyId");
-    return;
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-
-  const q = query(
-    collection(db, "ventas"),
-    where("companyId", "==", companyId),
-    where("fecha", ">=", today.getTime()),
-    where("fecha", "<", tomorrow.getTime())
-  );
-
-  const unsub = onSnapshot(q, snap => {
-    let totalHoy = 0;
-    snap.forEach(doc => {
-      const data = doc.data();
-      totalHoy += data.total || 0;
-    });
-
-    const cajaValor = document.getElementById("kpiCajaEmpresa");
-    if (cajaValor) cajaValor.textContent = `$${totalHoy.toLocaleString()}`;
-  });
-
-  unsubscribers.push(unsub);
-}
 
 
 /* ======================
