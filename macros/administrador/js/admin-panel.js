@@ -478,21 +478,9 @@ function renderPayments(arr) {
  */
 async function invokeRecordPayment(payload) {
   try {
-    // Try callable
-    const fn = httpsCallable(functions, "recordPayment");
-    const res = await fn(payload);
-    if (res && res.data && res.data.success) return { success: true, paymentId: res.data.paymentId };
-    // If callable didn't return expected, fallback
-    console.warn("recordPayment callable returned unexpected:", res);
-  } catch (err) {
-    console.warn("recordPayment callable failed, fallback to client transaction. Err:", err && err.message);
-  }
-
-  // Fallback: write to Firestore and adjust balances in a transaction
-  try {
     const { companyId, amount, monthsPaid, promoCode, affiliateId, affiliateFee = 0, createdByNote } = payload;
-    // Create payment doc first (non-transactional write) then update balances in transaction.
-    // This ordering avoids the Firestore error "all reads before writes" because transaction only reads & writes its own refs.
+
+    // 1️⃣ Crear documento de pago fuera de la transacción
     const paymentRef = await addDoc(collection(db, "companies", companyId, "payments"), {
       amount,
       monthsPaid,
@@ -504,20 +492,32 @@ async function invokeRecordPayment(payload) {
     });
     const paymentId = paymentRef.id;
 
-    // update balances and affiliate owed in transaction
+    // 2️⃣ Ajustar balances dentro de transacción
     await runTransaction(db, async (tx) => {
       const balancesRef = doc(db, "companies", companyId, "state", "balances");
       const balancesSnap = await tx.get(balancesRef);
       const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
       const newCaja = oldCaja + Number(amount || 0);
-      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
-      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
 
-      // movements
+      if (balancesSnap.exists()) {
+        tx.update(balancesRef, { cajaEmpresa: newCaja });
+      } else {
+        tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+      }
+
+      // Registrar movimiento
       const movRef = doc(collection(db, "companies", companyId, "movements"));
-      tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: amount, desc: `Pago ID ${paymentId}`, paymentId, createdAt: serverTimestamp() });
+      tx.set(movRef, {
+        tipo: "ingreso",
+        cuenta: "cajaEmpresa",
+        fecha: new Date().toISOString().slice(0, 10),
+        monto: amount,
+        desc: `Pago ID ${paymentId}`,
+        paymentId,
+        createdAt: serverTimestamp()
+      });
 
-      // affiliate balance
+      // Ajustar afiliado
       if (affiliateId && Number(affiliateFee || 0) > 0) {
         const affRef = doc(db, "affiliates", affiliateId);
         const affSnap = await tx.get(affRef);
@@ -528,10 +528,11 @@ async function invokeRecordPayment(payload) {
 
     return { success: true, paymentId };
   } catch (err) {
-    console.error("Fallback recordPayment error:", err);
+    console.error("invokeRecordPayment error:", err);
     throw err;
   }
 }
+
 
 /* Submit payment: handles create and edit (if modal has editing flags) */
 if (document.getElementById("formRegister")) {
