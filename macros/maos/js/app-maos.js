@@ -233,31 +233,112 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-function applyRoleVisibility() {
+// Reemplaza tu función applyRoleVisibility por esta versión
+async function applyRoleVisibility(companyIdParam) {
+  // admite companyId como parámetro o usa la variable global companyId
+  const cid = companyIdParam || companyId || window.companyId || null;
+  if (!cid) {
+    console.error("❌ applyRoleVisibility: companyId no disponible.");
+    return;
+  }
+
   if (userRole === "empleado") {
-    // 🔒 Limitar pestañas visibles
+    // 🗂 Pestañas permitidas para empleado
+    const allowedTabs = ["ventas", "egresos", "ingresos", "inventario"];
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
-      btn.style.display = (t === "ventas" || t === "ingresos" || t === "inventario") ? "" : "none";
+      btn.style.display = allowedTabs.includes(t) ? "" : "none";
     });
     $("[data-tab='ventas']").click();
 
-    // 🔒 Modificar la tarjeta de "Caja Empresa"
-    const cajaTitle = document.querySelector(".bg-white .text-sm.text-slate-500"); 
+    // 🎯 Seleccionar la tarjeta EXACTA de "Caja Empresa"
     const cajaValor = document.getElementById("kpiCajaEmpresa");
-    const cajaBotones = cajaValor?.nextElementSibling; // div que contiene los botones
-    const cajaRange = document.getElementById("kpiCajaRangeResult");
+    const cajaCard = cajaValor ? cajaValor.closest(".bg-white") : null;
+    const cajaTitle = cajaCard ? cajaCard.querySelector(".text-sm.text-slate-500") : null;
+    const cajaBotones = cajaCard ? cajaCard.querySelector(".mt-2.text-xs") : null;
+    const cajaRange = cajaCard ? cajaCard.querySelector("#kpiCajaRangeResult") : null;
 
     if (cajaTitle && cajaValor) {
       cajaTitle.textContent = "💰 Ventas de hoy";
-      cajaValor.textContent = "$0"; // valor inicial
+      cajaValor.textContent = "Cargando...";
+      // bloquear para que otras subs no lo reescriban
+      cajaValor.setAttribute("data-locked", "true");
     }
-    if (cajaBotones) cajaBotones.style.display = "none"; // 🔥 Oculta los botones
-    if (cajaRange) cajaRange.style.display = "none";   // 🔥 Oculta el texto de rango
+    if (cajaBotones) cajaBotones.style.display = "none"; // ocultar botones 7d/30d/rango
+    if (cajaRange) cajaRange.style.display = "none";
+
+    // 🔄 Cancela suscripción previa a "ventas hoy" (evita duplicados al recargar)
+    try {
+      if (window._salesTodayUnsub && typeof window._salesTodayUnsub === "function") {
+        try { window._salesTodayUnsub(); } catch(e){/* ignore */ }
+        window._salesTodayUnsub = null;
+      }
+
+      // 📅 rango hoy (client-side filter, más robusto frente a distintos formatos de fecha)
+      const start = new Date(); start.setHours(0,0,0,0);
+      const end = new Date(start); end.setDate(start.getDate() + 1);
+
+      // ✳️ apuntar a la colección correcta: companies/{cid}/sales
+      const salesColl = collection(db, "companies", cid, "sales");
+      const salesQuery = query(salesColl, orderBy("createdAt", "desc")); // orderBy mejora la UX
+
+      const unsub = onSnapshot(salesQuery, (snap) => {
+        let totalHoy = 0;
+
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+
+          // intentar obtener la fecha de creación de varias formas
+          let created = null;
+          if (data.createdAt && typeof data.createdAt.toDate === "function") {
+            created = data.createdAt.toDate();
+          } else if (data.createdAt && data.createdAt.seconds) {
+            created = new Date(data.createdAt.seconds * 1000);
+          } else if (data.fecha) {
+            // fecha puede ser número (ms) o string
+            try {
+              created = (typeof data.fecha === "number") ? new Date(data.fecha) : new Date(data.fecha);
+            } catch (e) {
+              created = null;
+            }
+          }
+
+          if (!created) return; // si no hay fecha, no lo contamos para hoy
+
+          if (created >= start && created < end) {
+            // sumar total; varios nombres posibles para total por seguridad
+            const t = Number(data.total ?? data.totalAmount ?? data.totalVenta ?? data.total_sales ?? 0) || 0;
+            totalHoy += t;
+          }
+        });
+
+        if (cajaValor) cajaValor.textContent = `$${totalHoy.toLocaleString()}`;
+      }, (err) => {
+        console.error("onSnapshot ventas hoy error:", err);
+        if (cajaValor) cajaValor.textContent = "$0";
+      });
+
+      // guardar para poder cancelar al volver a llamar
+      window._salesTodayUnsub = unsub;
+      // opcional: si tienes la lista global unsubscribers:
+      if (typeof unsubscribers !== "undefined" && Array.isArray(unsubscribers)) unsubscribers.push(unsub);
+
+    } catch (err) {
+      console.error("❌ Error cargando ventas de hoy:", err);
+      if (cajaValor) cajaValor.textContent = "$0";
+    }
+
   } else {
+    // Admin -> mostrar todo
     $$(".tab-btn").forEach(btn => btn.style.display = "");
+    // asegúrate de desbloquear la caja si existiera
+    const caja = document.getElementById("kpiCajaEmpresa");
+    if (caja) caja.removeAttribute("data-locked");
   }
 }
+
+
+
 
 
 /* ======================
@@ -319,14 +400,23 @@ function subscribeSales() {
 }
 
 function subscribeBalances() {
-  const ref = doc(db, "companies", companyId, "state", "balances");
-  const unsub = onSnapshot(ref, snap => {
+  const refBalances = doc(db, "companies", companyId, "state", "balances");
+  const unsub = onSnapshot(refBalances, snap => {
     const d = snap.exists() ? snap.data() : {};
-    $("#kpiCajaEmpresa").textContent = money(d.cajaEmpresa || 0);
-    $("#kpiDeudas").textContent = money(d.deudasTotales || 0);
+    const cajaEl = document.getElementById("kpiCajaEmpresa");
+    // si está bloqueada por la vista empleado no la sobrescribimos
+    if (cajaEl) {
+      if (cajaEl.getAttribute("data-locked") !== "true") {
+        cajaEl.textContent = money(d.cajaEmpresa || 0);
+      } // else: la caja la controla applyRoleVisibility ventas de hoy
+    }
+    const deudasEl = document.getElementById("kpiDeudas");
+    if (deudasEl) deudasEl.textContent = money(d.deudasTotales || 0);
   });
-  unsubscribers.push(unsub);
+  if (typeof unsubscribers !== "undefined" && Array.isArray(unsubscribers)) unsubscribers.push(unsub);
 }
+
+
 
 function updateInventarioKPI() {
   let total = 0;
