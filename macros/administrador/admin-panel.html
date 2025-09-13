@@ -23,7 +23,7 @@
         <input id="loginEmail" type="email" placeholder="Email" class="w-full border rounded p-2" required>
         <input id="loginPass" type="password" placeholder="Contraseña" class="w-full border rounded p-2" required>
         <div class="flex gap-2">
-          <button id="btnLogin" class="px-3 py-2 bg-slate-900 text-white rounded">Iniciar sesión</button>
+          <button id="btnLogin" type="submit" class="px-3 py-2 bg-slate-900 text-white rounded">Iniciar sesión</button>
           <button id="btnShowRegister" type="button" class="px-3 py-2 border rounded">Crear cuenta (admin)</button>
         </div>
       </form>
@@ -36,7 +36,7 @@
           <input id="regPass" type="password" placeholder="Contraseña" class="w-full border rounded p-2" required>
           <div class="flex justify-end gap-2">
             <button id="btnCancelRegister" type="button" class="px-3 py-2 border rounded">Cancelar</button>
-            <button id="btnRegister" class="px-3 py-2 bg-emerald-600 text-white rounded">Crear cuenta</button>
+            <button id="btnRegister" type="submit" class="px-3 py-2 bg-emerald-600 text-white rounded">Crear cuenta</button>
           </div>
         </form>
       </div>
@@ -141,7 +141,7 @@
   <div id="modalRegister" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
     <div class="bg-white rounded p-6 w-full max-w-lg shadow">
       <h3 class="font-semibold text-lg mb-3">Registrar Pago</h3>
-      <form id="formRegister" class="space-y-3">
+      <form id="formRegister" class="space-y-3" novalidate>
         <div><label class="text-sm">Empresa (companyId)</label><select id="selCompany" class="w-full border rounded p-2"></select></div>
         <div><label class="text-sm">Monto (COP)</label><input id="inpAmount" type="number" min="0" value="80000" class="w-full border rounded p-2" required></div>
         <div class="grid grid-cols-2 gap-2">
@@ -164,7 +164,7 @@
         <div><label>Nota</label><input id="inpNote" type="text" class="w-full border rounded p-2"></div>
         <div class="flex justify-end gap-2">
           <button type="button" id="btnCancel" class="px-3 py-2 border rounded">Cancelar</button>
-          <button id="btnSubmit" class="px-3 py-2 bg-emerald-600 text-white rounded">Registrar</button>
+          <button type="submit" id="btnSubmit" class="px-3 py-2 bg-emerald-600 text-white rounded">Registrar</button>
         </div>
       </form>
     </div>
@@ -180,7 +180,7 @@
         <input id="affIdHidden" type="hidden">
         <div class="flex justify-end gap-2">
           <button type="button" id="btnCancelAffiliate" class="px-3 py-2 border rounded">Cancelar</button>
-          <button id="btnCreateAffiliate" class="px-3 py-2 bg-emerald-600 text-white rounded">Guardar</button>
+          <button type="submit" id="btnCreateAffiliate" class="px-3 py-2 bg-emerald-600 text-white rounded">Guardar</button>
         </div>
       </form>
     </div>

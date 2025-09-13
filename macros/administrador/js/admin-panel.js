@@ -546,6 +546,123 @@ async function invokeRecordPayment(payload) {
   }
 }
 
+
+// Listener del formulario (asegurar prevencion del comportamiento por defecto)
+const formRegister = document.getElementById("formRegister");
+if (formRegister) {
+  formRegister.addEventListener("submit", async (ev) => {
+    ev.preventDefault(); // <- esto evita recargar
+    await submitRegister(); // llama a la función central
+  });
+}
+
+// Función submitRegister: crea o edita pago (usa invokeRecordPayment)
+async function submitRegister() {
+  try {
+    const companyId = selCompany?.value;
+    const amount = Number((inpAmount && inpAmount.value) || 0);
+    const monthsPaid = Number((inpMonths && inpMonths.value) || 0);
+    const promoCode = (inpPromo && inpPromo.value.trim()) || null;
+    const affiliateId = (selAffiliate && selAffiliate.value) || null;
+    const affiliateFeeVal = Number((affiliateFee && affiliateFee.value) || 0);
+    const note = (inpNote && inpNote.value) || null;
+
+    if (!companyId || !amount || monthsPaid <= 0) {
+      return alert("Completa campos obligatorios: empresa, monto y meses.");
+    }
+
+    // ¿editando?
+    const editingPayment = modal?.dataset?.editingPayment;
+    const editingCompany = modal?.dataset?.editingCompany;
+    if (editingPayment && editingCompany) {
+      // Llamar a tu función de edición (transaccional) si existe:
+      await editPaymentWithAdjust(editingCompany, editingPayment, {
+        amount, monthsPaid, promoCode, affiliateId, affiliateFee: affiliateFeeVal, note
+      });
+      alert("Pago editado correctamente.");
+      if (modal) modal.classList.add("hidden");
+      delete modal.dataset.editingPayment;
+      delete modal.dataset.editingCompany;
+      await loadAll();
+      return;
+    }
+
+    // crear nuevo pago (llama invokeRecordPayment que hace addDoc + runTransaction)
+    const payload = { companyId, amount, monthsPaid, promoCode, affiliateId, affiliateFee: affiliateFeeVal, createdByNote: note };
+    const res = await invokeRecordPayment(payload);
+    if (res && res.success) {
+      alert("Pago registrado: " + res.paymentId);
+      if (modal) modal.classList.add("hidden");
+      await loadAll();
+    } else {
+      throw new Error("Respuesta inesperada al guardar pago.");
+    }
+  } catch (err) {
+    console.error("submitRegister error", err);
+    alert("Error registrando pago: " + (err.message || err));
+  }
+}
+
+
+async function invokeRecordPayment(payload) {
+  try {
+    // Intenta llamar a la Cloud Function si la tienes (opcional)
+    const fn = httpsCallable(functions, "recordPayment");
+    const callRes = await fn(payload);
+    if (callRes && callRes.data && callRes.data.success) {
+      return { success: true, paymentId: callRes.data.paymentId };
+    }
+    // si callable no devuelve success seguimos a fallback
+  } catch (err) {
+    // no detener: fallback al cliente
+    console.warn("recordPayment callable failed, fallback to client. Err:", err && err.message);
+  }
+
+  // FALLBACK: addDoc (no transacción) luego runTransaction para ajustes
+  try {
+    const { companyId, amount, monthsPaid, promoCode, affiliateId, affiliateFee = 0, createdByNote } = payload;
+    // 1) crear documento de pago (fuera de la transacción)
+    const paymentRef = await addDoc(collection(db, "companies", companyId, "payments"), {
+      amount,
+      monthsPaid,
+      promoCode: promoCode || null,
+      affiliateId: affiliateId || null,
+      affiliateFee: affiliateFee || 0,
+      note: createdByNote || null,
+      createdAt: serverTimestamp()
+    });
+    const paymentId = paymentRef.id;
+
+    // 2) ahora en transacción sólo leemos y actualizamos balances / afiliados
+    await runTransaction(db, async (tx) => {
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const balancesSnap = await tx.get(balancesRef);
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+      const newCaja = oldCaja + Number(amount || 0);
+      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
+      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+
+      // movimiento
+      const movRef = doc(collection(db, "companies", companyId, "movements"));
+      tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: amount, desc: `Pago ID ${paymentId}`, paymentId, createdAt: serverTimestamp() });
+
+      // ajustar afiliado
+      if (affiliateId && Number(affiliateFee || 0) > 0) {
+        const affRef = doc(db, "affiliates", affiliateId);
+        const affSnap = await tx.get(affRef);
+        const oldBal = affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
+        tx.set(affRef, { balanceOwed: oldBal + Number(affiliateFee || 0) }, { merge: true });
+      }
+    });
+
+    return { success: true, paymentId };
+  } catch (err) {
+    console.error("Fallback recordPayment error:", err);
+    throw err;
+  }
+}
+
+
 /* ===========================
    HELPERS
    =========================== */
