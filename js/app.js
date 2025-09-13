@@ -234,13 +234,13 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 async function applyRoleVisibility(companyId) {
-  if (userRole === "empleado") {
+  if (userRole && userRole === "empleado") {
     if (!companyId) {
       console.error("❌ No se encontró companyId para este empleado. No se puede cargar ventas de hoy.");
       return;
     }
 
-    // 🔒 Limitar pestañas visibles
+    // 🔒 Limitar pestañas visibles SOLO para empleado
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
       btn.style.display = (t === "ventas" || t === "egresos" || t === "inventario") ? "" : "none";
@@ -256,7 +256,7 @@ async function applyRoleVisibility(companyId) {
     if (cajaTitle && cajaValor) {
       cajaTitle.textContent = "💰 Ventas de hoy";
       cajaValor.textContent = "Cargando...";
-      // 🚫 Marcar este bloque como "bloqueado" para que subscribeBalances no lo toque
+      // 🚫 Bloquear este bloque para que otras funciones (ej: subscribeBalances) no lo sobreescriban
       cajaValor.setAttribute("data-locked", "true");
     }
     if (cajaBotones) cajaBotones.style.display = "none";
@@ -293,11 +293,14 @@ async function applyRoleVisibility(companyId) {
       if (cajaValor) cajaValor.textContent = "$0";
     }
 
-  } else {
+  } else if (userRole && userRole === "admin") {
     // 👑 Admin → mostrar todo normal
     $$(".tab-btn").forEach(btn => btn.style.display = "");
+  } else {
+    console.warn("⚠️ userRole no definido todavía, no se aplicó visibilidad de pestañas.");
   }
 }
+
 
 
 
