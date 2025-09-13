@@ -400,24 +400,22 @@ function subscribeSales() {
 }
 
 function subscribeBalances() {
-  const ref = doc(db, "companies", companyId, "state", "balances");
-  const unsub = onSnapshot(ref, snap => {
+  const refBalances = doc(db, "companies", companyId, "state", "balances");
+  const unsub = onSnapshot(refBalances, snap => {
     const d = snap.exists() ? snap.data() : {};
-
-    if (userRole === "admin") {
-      // 👑 Admin ve todo el saldo de la empresa
-      $("#kpiCajaEmpresa").textContent = money(d.cajaEmpresa || 0);
-    } else {
-      // 👷 Empleado → mantener solo "ventas de hoy"
-      // ⚠️ No sobreescribimos el valor que ya fijó applyRoleVisibility()
-      console.debug("Empleado conectado → se respeta ventas de hoy en lugar de caja total");
+    const cajaEl = document.getElementById("kpiCajaEmpresa");
+    // si está bloqueada por la vista empleado no la sobrescribimos
+    if (cajaEl) {
+      if (cajaEl.getAttribute("data-locked") !== "true") {
+        cajaEl.textContent = money(d.cajaEmpresa || 0);
+      } // else: la caja la controla applyRoleVisibility ventas de hoy
     }
-
-    // Deudas sí puede mostrarse a ambos roles
-    $("#kpiDeudas").textContent = money(d.deudasTotales || 0);
+    const deudasEl = document.getElementById("kpiDeudas");
+    if (deudasEl) deudasEl.textContent = money(d.deudasTotales || 0);
   });
-  unsubscribers.push(unsub);
+  if (typeof unsubscribers !== "undefined" && Array.isArray(unsubscribers)) unsubscribers.push(unsub);
 }
+
 
 
 function updateInventarioKPI() {
