@@ -234,31 +234,29 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 async function applyRoleVisibility(companyId) {
-  if (userRole && userRole === "empleado") {
+  if (userRole === "empleado") {
     if (!companyId) {
       console.error("❌ No se encontró companyId para este empleado. No se puede cargar ventas de hoy.");
       return;
     }
 
-    // 🔒 Limitar pestañas visibles SOLO para empleado
-    const allowedTabs = ["ventas", "inventario", "egresos"];
+    // 🔒 Limitar pestañas visibles
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
-      btn.style.display = allowedTabs.includes(t) ? "" : "none";
+      btn.style.display = (t === "ventas" || t === "egresos" || t === "inventario") ? "" : "none";
     });
     $("[data-tab='ventas']").click();
 
-    // 🎯 Asegurarnos de seleccionar SOLO la tarjeta de "Caja Empresa"
-    const cajaCard = document.querySelector("#kpiCajaEmpresa")?.closest(".bg-white");
-    const cajaTitle = cajaCard?.querySelector(".text-sm.text-slate-500");
-    const cajaValor = cajaCard?.querySelector("#kpiCajaEmpresa");
-    const cajaBotones = cajaCard?.querySelector(".mt-2.text-xs");
-    const cajaRange = cajaCard?.querySelector("#kpiCajaRangeResult");
+    // 🔒 Modificar tarjeta de "Caja Empresa" → ahora será "Ventas de hoy"
+    const cajaTitle = document.querySelector(".bg-white .text-sm.text-slate-500"); 
+    const cajaValor = document.getElementById("kpiCajaEmpresa");
+    const cajaBotones = cajaValor?.nextElementSibling; 
+    const cajaRange = document.getElementById("kpiCajaRangeResult");
 
     if (cajaTitle && cajaValor) {
       cajaTitle.textContent = "💰 Ventas de hoy";
       cajaValor.textContent = "Cargando...";
-      // 🚫 Bloquear este bloque para que otras funciones no lo sobreescriban
+      // 🚫 Marcar este bloque como "bloqueado" para que subscribeBalances no lo toque
       cajaValor.setAttribute("data-locked", "true");
     }
     if (cajaBotones) cajaBotones.style.display = "none";
@@ -295,13 +293,14 @@ async function applyRoleVisibility(companyId) {
       if (cajaValor) cajaValor.textContent = "$0";
     }
 
-  } else if (userRole && userRole === "admin") {
+  } else {
     // 👑 Admin → mostrar todo normal
     $$(".tab-btn").forEach(btn => btn.style.display = "");
-  } else {
-    console.warn("⚠️ userRole no definido todavía, no se aplicó visibilidad de pestañas.");
   }
 }
+
+
+
 
 
 /* ======================
