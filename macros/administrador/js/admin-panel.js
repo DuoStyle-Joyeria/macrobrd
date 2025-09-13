@@ -7,7 +7,7 @@ import {
 
 import {
   getFirestore, collection, getDocs, query, orderBy, doc, getDoc,
-  addDoc, setDoc, serverTimestamp
+  addDoc, setDoc, serverTimestamp, runTransaction, updateDoc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
@@ -65,6 +65,8 @@ const inpAmount = $("#inpAmount");
 const inpMonths = $("#inpMonths");
 const inpPromo = $("#inpPromo");
 const inpNote = $("#inpNote");
+const affiliateFeeRow = $("#affiliateFeeRow");
+const affiliateFee = $("#affiliateFee");
 const btnSubmit = $("#btnSubmit");
 const btnReload = $("#btnReload");
 const btnLogout = $("#btnLogout");
@@ -76,7 +78,7 @@ const btnCancelAffiliate = $("#btnCancelAffiliate");
 const btnCreateAffiliate = $("#btnCreateAffiliate");
 const affName = $("#affName");
 const affPhone = $("#affPhone");
-const affPct = $("#affPct");
+const affIdHidden = $("#affIdHidden");
 
 let companiesCache = [];
 let affiliatesCache = [];
@@ -98,7 +100,6 @@ loginForm?.addEventListener("submit", async (ev) => {
   if (!email || !pass) return alert("Completa email y contraseña.");
   try {
     await signInWithEmailAndPassword(auth, email, pass);
-    // onAuthStateChanged will handle UI
   } catch (err) {
     console.error("login error", err);
     alert("Error autenticando: " + (err.message || err));
@@ -114,7 +115,6 @@ registerForm?.addEventListener("submit", async (ev) => {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(cred.user, { displayName: name });
-    // create minimal user doc if not exists + company doc
     const uid = cred.user.uid;
     const cid = `${uid}-company`;
     await setDoc(doc(db, "users", uid), {
@@ -151,14 +151,12 @@ onAuthStateChanged(auth, async (user) => {
   authOverlay.classList.add("hidden");
   appDiv.classList.remove("hidden");
   loggedAs.textContent = `Sesión: ${user.email || user.displayName || user.uid}`;
-  // load data
   await loadAll();
 });
 
 /* logout */
 btnLogout?.addEventListener("click", async () => {
   await signOut(auth);
-  // will show auth overlay by onAuthStateChanged
 });
 
 /* ---------------------------
@@ -203,7 +201,6 @@ async function computeBalances() {
       const egresosSnap = await getDocs(collection(compRef, "egresos"));
       const ventasSnap = await getDocs(collection(compRef, "sales"));
 
-      // soporta campos "amount" o "monto" o "total"
       const ingresos = ingresosSnap.docs.reduce((s,d)=> s + Number(d.data().amount ?? d.data().monto ?? 0), 0);
       const egresos  = egresosSnap.docs.reduce((s,d)=> s + Number(d.data().amount ?? d.data().monto ?? 0), 0);
       const ventas   = ventasSnap.docs.reduce((s,d)=> s + Number(d.data().total ?? d.data().amount ?? 0), 0);
@@ -256,7 +253,7 @@ function populateCompanySelect() {
 }
 
 /* ===========================
-   AFILIADOS
+   AFILIADOS (solo nombre + telefono)
    =========================== */
 async function loadAffiliates() {
   try {
@@ -281,22 +278,33 @@ function renderAffiliates() {
     tr.innerHTML = `<td>${escapeHtml(a.name||a.id)}</td>
       <td>${escapeHtml(a.phone||'-')}</td>
       <td>${money(a.balanceOwed||0)}</td>
-      <td>${a.commissionPct||0}%</td>
-      <td><button class="px-2 py-1 border rounded btnPay" data-id="${a.id}">Marcar pago</button></td>`;
+      <td>
+        <button class="px-2 py-1 border rounded btnEditAff" data-id="${a.id}">Editar</button>
+        <button class="px-2 py-1 border rounded btnDelAff" data-id="${a.id}">Eliminar</button>
+      </td>`;
     tbAffiliates.appendChild(tr);
   });
 
-  $$(".btnPay").forEach(b => b.onclick = async () => {
+  $$(".btnEditAff").forEach(b => b.onclick = async () => {
     const id = b.dataset.id;
-    if (!confirm("Marcar saldo como pagado (registro local, ejecutar pago real fuera)?")) return;
-    // Simplemente marcamos balanceOwed = 0 (si deseas, llamar cloud function)
+    const a = affiliatesCache.find(x=>x.id===id);
+    if (!a) return alert("Afiliado no encontrado");
+    affIdHidden.value = id;
+    affName.value = a.name || "";
+    affPhone.value = a.phone || "";
+    modalAffiliate.classList.remove("hidden");
+  });
+
+  $$(".btnDelAff").forEach(b => b.onclick = async () => {
+    const id = b.dataset.id;
+    if (!confirm("Eliminar afiliado? Esto no eliminará pagos previos pero sí quitará el registro.")) return;
     try {
-      await setDoc(doc(db,"affiliates",id), { balanceOwed: 0 }, { merge: true });
-      alert("Saldo marcado como pagado (balance a 0).");
+      await deleteDoc(doc(db,"affiliates",id));
+      alert("Afiliado eliminado");
       await loadAffiliates();
     } catch (err) {
-      console.error("mark payout error", err);
-      alert("Error marcando pago: " + (err.message||err));
+      console.error("delete affiliate", err);
+      alert("Error eliminando afiliado: " + (err.message||err));
     }
   });
 }
@@ -312,39 +320,46 @@ function populateAffiliateSelect() {
   });
 }
 
-/* Crear afiliado desde modal */
-btnNewAffiliate?.addEventListener("click", () => modalAffiliate.classList.remove("hidden"));
+/* Crear / Editar afiliado desde modal */
+btnNewAffiliate?.addEventListener("click", () => {
+  affIdHidden.value = "";
+  affName.value = ""; affPhone.value = "";
+  modalAffiliate.classList.remove("hidden");
+});
 btnCancelAffiliate?.addEventListener("click", () => modalAffiliate.classList.add("hidden"));
 formAffiliate?.addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  await createAffiliate();
+  await createOrUpdateAffiliate();
 });
 btnCreateAffiliate?.addEventListener("click", async (ev) => {
   ev.preventDefault();
-  await createAffiliate();
+  await createOrUpdateAffiliate();
 });
 
-async function createAffiliate() {
+async function createOrUpdateAffiliate() {
   const name = affName.value.trim();
   const phone = affPhone.value.trim() || null;
-  const pct = Number(affPct.value || 0);
+  const id = affIdHidden.value || null;
   if (!name) return alert("Nombre requerido");
   try {
-    const res = await addDoc(collection(db,"affiliates"), {
-      name, phone, commissionPct: pct, balanceOwed: 0, createdAt: serverTimestamp()
-    });
-    alert("Afiliado creado: " + res.id);
+    if (id) {
+      // update
+      await updateDoc(doc(db,"affiliates",id), { name, phone });
+      alert("Afiliado actualizado");
+    } else {
+      const res = await addDoc(collection(db,"affiliates"), { name, phone, balanceOwed: 0, createdAt: serverTimestamp() });
+      alert("Afiliado creado: " + res.id);
+    }
     modalAffiliate.classList.add("hidden");
-    affName.value = ""; affPhone.value = ""; affPct.value = "30";
     await loadAffiliates();
   } catch (err) {
     console.error("createAffiliate error", err);
-    alert("Error creando afiliado: " + (err.message||err));
+    alert("Error creando/actualizando afiliado: " + (err.message||err));
   }
 }
 
 /* ===========================
-   PAGOS
+   PAGOS (listar / crear / editar / eliminar)
    =========================== */
 async function loadRecentPayments() {
   try {
@@ -354,6 +369,12 @@ async function loadRecentPayments() {
       const ps = await getDocs(query(collection(companyRef, "payments"), orderBy("createdAt", "desc")));
       ps.docs.forEach(d => payments.push({ companyId: c.id, id: d.id, ...d.data() }));
     }
+    // sort by createdAt desc
+    payments.sort((a,b)=> {
+      const ta = a.createdAt?.seconds ? a.createdAt.seconds : 0;
+      const tb = b.createdAt?.seconds ? b.createdAt.seconds : 0;
+      return tb - ta;
+    });
     paymentsCache = payments;
     renderPayments(payments.slice(0,200));
   } catch (err) {
@@ -367,44 +388,321 @@ function renderPayments(arr) {
   if (!tbPayments) return;
   tbPayments.innerHTML = "";
   arr.forEach(p => {
+    const dateText = p.createdAt && p.createdAt.seconds ? new Date(p.createdAt.seconds*1000).toLocaleString() : '-';
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${p.createdAt && p.createdAt.seconds ? new Date(p.createdAt.seconds*1000).toLocaleString() : '-'}</td>
+    tr.innerHTML = `<td>${dateText}</td>
       <td>${escapeHtml(p.companyId || '-')}</td>
       <td>${money(p.amount ?? p.monto ?? 0)}</td>
       <td>${p.monthsPaid||p.months||0}</td>
-      <td>${escapeHtml(p.affiliateId||p.sellerId||'-')}</td>
-      <td><button class="px-2 py-1 border rounded btnInvoice" data-company="${p.companyId}" data-id="${p.id}">PDF</button></td>`;
+      <td>${escapeHtml(p.affiliateId||p.sellerId||p.affiliateName||'-')}</td>
+      <td>
+        <button class="px-2 py-1 border rounded btnInvoice" data-company="${p.companyId}" data-id="${p.id}">PDF</button>
+        <button class="px-2 py-1 border rounded btnEditPayment" data-company="${p.companyId}" data-id="${p.id}">Editar</button>
+        <button class="px-2 py-1 border rounded btnDelPayment" data-company="${p.companyId}" data-id="${p.id}">Eliminar</button>
+      </td>`;
     tbPayments.appendChild(tr);
   });
 
-  $$(".btnInvoice").forEach(b => b.onclick = async () => {
-    const companyId = b.dataset.company;
-    const paymentId = b.dataset.id;
+  $$(".btnInvoice").forEach(b => b.onclick = async (e) => {
+    alert("Descarga PDF por ahora via cloud function (si existe). Se implementa con httpsCallable si tienes 'generateInvoice'.");
+  });
+
+  $$(".btnEditPayment").forEach(b => b.onclick = async () => {
+    const cid = b.dataset.company;
+    const id = b.dataset.id;
+    const p = paymentsCache.find(x=> x.companyId===cid && x.id===id);
+    if (!p) return alert("Pago no encontrado");
+    // Pre-fill modal to edit
+    selCompany.value = cid;
+    inpAmount.value = p.amount ?? p.monto ?? 0;
+    inpMonths.value = p.monthsPaid ?? p.months ?? 1;
+    inpPromo.value = p.promoCode || "";
+    selAffiliate.value = p.affiliateId || "";
+    affiliateFee.value = p.affiliateFee || 0;
+    inpNote.value = p.note || p.createdByNote || "";
+    // store editing markers on modal element
+    modal.dataset.editingCompany = cid;
+    modal.dataset.editingPayment = id;
+    // show affiliateFee row if affiliate selected
+    affiliateFeeRow.classList.toggle("hidden", !selAffiliate.value);
+    modal.classList.remove("hidden");
+  });
+
+  $$(".btnDelPayment").forEach(b => b.onclick = async () => {
+    const cid = b.dataset.company;
+    const id = b.dataset.id;
+    if (!confirm("Eliminar pago? Esto ajustará saldos (se intentará revertir el pago).")) return;
     try {
-      const gen = httpsCallable(functions, "generateInvoice");
-      const res = await gen({ companyId, paymentId });
-      if (res.data && res.data.invoiceBase64) {
-        const bin = atob(res.data.invoiceBase64);
-        const len = bin.length;
-        const buf = new Uint8Array(len);
-        for (let i=0;i<len;i++) buf[i]=bin.charCodeAt(i);
-        const blob = new Blob([buf], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = res.data.filename || `factura_${companyId}_${paymentId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } else {
-        alert("No se recibió PDF del servidor.");
-      }
+      await deletePaymentWithAdjust(cid, id);
+      alert("Pago eliminado y saldos ajustados (si aplica).");
+      await loadAll();
     } catch (err) {
-      console.error("invoice error", err);
-      alert("Error solicitando factura: "+(err.message||err));
+      console.error("delete payment", err);
+      alert("Error eliminando pago: " + (err.message||err));
     }
   });
+}
+
+/**
+ * Try to call cloud function recordPayment; if it fails, fallback to client-side transaction.
+ * Returns { success:true, paymentId } on success.
+ */
+async function invokeRecordPayment(payload) {
+  try {
+    // Try callable
+    const fn = httpsCallable(functions, "recordPayment");
+    const res = await fn(payload);
+    if (res && res.data && res.data.success) return { success: true, paymentId: res.data.paymentId };
+    // If callable didn't return expected, fallback
+    console.warn("recordPayment callable returned unexpected:", res);
+  } catch (err) {
+    console.warn("recordPayment callable failed, fallback to client transaction. Err:", err && err.message);
+  }
+
+  // Fallback: write to Firestore in transaction
+  try {
+    const { companyId, amount, monthsPaid, promoCode, affiliateId, affiliateFee = 0, createdByNote } = payload;
+    const paymentId = (await addDoc(collection(db, "companies", companyId, "payments"), {
+      amount,
+      monthsPaid,
+      promoCode: promoCode || null,
+      affiliateId: affiliateId || null,
+      affiliateFee: affiliateFee || 0,
+      note: createdByNote || null,
+      createdAt: serverTimestamp()
+    })).id;
+
+    // update balances and affiliate owed in transaction
+    await runTransaction(db, async (tx) => {
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const balancesSnap = await tx.get(balancesRef);
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+      const newCaja = oldCaja + Number(amount || 0);
+      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
+      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+
+      // movements
+      const movRef = doc(collection(db, "companies", companyId, "movements"));
+      tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: amount, desc: `Pago ID ${paymentId}`, paymentId, createdAt: serverTimestamp() });
+
+      // affiliate balance
+      if (affiliateId && Number(affiliateFee || 0) > 0) {
+        const affRef = doc(db, "affiliates", affiliateId);
+        const affSnap = await tx.get(affRef);
+        const oldBal = affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
+        tx.set(affRef, { balanceOwed: oldBal + Number(affiliateFee || 0) }, { merge: true });
+      }
+    });
+
+    return { success: true, paymentId };
+  } catch (err) {
+    console.error("Fallback recordPayment error:", err);
+    throw err;
+  }
+}
+
+/* Submit payment: handles create and edit (if modal has editing flags) */
+document.getElementById("formRegister").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  await submitRegister();
+});
+
+btnOpen?.addEventListener("click", () => {
+  // clear editing flags
+  delete modal.dataset.editingPayment;
+  delete modal.dataset.editingCompany;
+  selCompany.value = companiesCache[0]?.id || "";
+  inpAmount.value = 80000;
+  inpMonths.value = 1;
+  inpPromo.value = "";
+  selAffiliate.value = "";
+  affiliateFee.value = 0;
+  affiliateFeeRow.classList.add("hidden");
+  inpNote.value = "";
+  modal.classList.remove("hidden");
+});
+btnCancel?.addEventListener("click", () => {
+  modal.classList.add("hidden");
+  delete modal.dataset.editingPayment;
+  delete modal.dataset.editingCompany;
+});
+btnReload?.addEventListener("click", () => loadAll());
+
+selAffiliate?.addEventListener("change", () => {
+  if (!selAffiliate) return;
+  if (selAffiliate.value) affiliateFeeRow.classList.remove("hidden");
+  else affiliateFeeRow.classList.add("hidden");
+});
+
+async function submitRegister() {
+  const companyId = selCompany.value;
+  const amount = Number(inpAmount.value || 0);
+  const monthsPaid = Number(inpMonths.value || 0);
+  const promoCode = inpPromo.value.trim() || null;
+  const affiliateId = selAffiliate.value || null;
+  const affiliateFeeVal = Number(affiliateFee.value || 0);
+  const note = inpNote.value || null;
+
+  if (!companyId || !amount || monthsPaid <= 0) return alert("Completa campos obligatorios");
+
+  // If modal contained editing flags -> update existing payment
+  const editingPayment = modal.dataset.editingPayment;
+  const editingCompany = modal.dataset.editingCompany;
+
+  try {
+    if (editingPayment && editingCompany) {
+      // Edit existing payment doc and adjust balances (simple approach):
+      await editPaymentWithAdjust(editingCompany, editingPayment, {
+        amount, monthsPaid, promoCode, affiliateId, affiliateFee: affiliateFeeVal, note
+      });
+      alert("Pago editado correctamente.");
+      modal.classList.add("hidden");
+      delete modal.dataset.editingPayment;
+      delete modal.dataset.editingCompany;
+      await loadAll();
+      return;
+    }
+
+    // Create new payment via callable or fallback
+    const payload = {
+      companyId, amount, monthsPaid, promoCode,
+      affiliateId, affiliateFee: affiliateFeeVal, createdByNote: note
+    };
+
+    const res = await invokeRecordPayment(payload);
+    if (res && res.success) {
+      alert("Pago registrado: " + res.paymentId);
+      modal.classList.add("hidden");
+      await loadAll();
+    } else {
+      throw new Error("Error guardando pago (respuesta inesperada).");
+    }
+  } catch (err) {
+    console.error("submitRegister error", err);
+    alert("Error registrando pago: " + (err.message || err));
+  }
+}
+
+/* Edit payment: must adjust company balances and affiliate balances as needed */
+async function editPaymentWithAdjust(companyId, paymentId, newData) {
+  // We'll run a transaction: read existing payment, compute diffs, apply updates
+  try {
+    await runTransaction(db, async (tx) => {
+      const payRef = doc(db, "companies", companyId, "payments", paymentId);
+      const paySnap = await tx.get(payRef);
+      if (!paySnap.exists()) throw new Error("Pago no encontrado");
+      const old = paySnap.data();
+
+      const oldAmount = Number(old.amount ?? old.monto ?? 0);
+      const newAmount = Number(newData.amount ?? newData.monto ?? 0);
+      const diff = newAmount - oldAmount;
+
+      // Update payment document
+      tx.update(payRef, {
+        amount: newAmount,
+        monthsPaid: newData.monthsPaid || old.monthsPaid || old.months || 1,
+        promoCode: newData.promoCode || old.promoCode || null,
+        affiliateId: newData.affiliateId || null,
+        affiliateFee: newData.affiliateFee || old.affiliateFee || 0,
+        note: newData.note || old.note || null,
+        updatedAt: serverTimestamp()
+      });
+
+      // Update company balances (cajaEmpresa)
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const balancesSnap = await tx.get(balancesRef);
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+      const newCaja = oldCaja + diff;
+      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
+      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+
+      // Add a movement to record edit (optional)
+      const movRef = doc(collection(db, "companies", companyId, "movements"));
+      tx.set(movRef, {
+        tipo: diff >= 0 ? "ingreso" : "egreso",
+        cuenta: "cajaEmpresa",
+        fecha: new Date().toISOString().slice(0,10),
+        monto: Math.abs(diff),
+        desc: `Ajuste pago ${paymentId} (edit)`,
+        paymentId,
+        createdAt: serverTimestamp()
+      });
+
+      // Affiliate adjustments (if affiliate changed or affiliateFee changed)
+      const oldAff = old.affiliateId || null;
+      const oldAffFee = Number(old.affiliateFee || 0);
+      const newAff = newData.affiliateId || null;
+      const newAffFee = Number(newData.affiliateFee || 0);
+
+      // If affiliate unchanged, just adjust difference between oldAffFee and newAffFee
+      if (oldAff && oldAff === newAff) {
+        const affRef = doc(db, "affiliates", oldAff);
+        const affSnap = await tx.get(affRef);
+        const oldBal = affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
+        const delta = newAffFee - oldAffFee;
+        if (delta !== 0) tx.update(affRef, { balanceOwed: oldBal + delta });
+      } else {
+        // If affiliate changed: subtract oldAffFee from old affiliate, add newAffFee to new affiliate
+        if (oldAff && oldAffFee) {
+          const refOld = doc(db, "affiliates", oldAff);
+          const sOld = await tx.get(refOld);
+          const oldBal = sOld.exists() ? Number(sOld.data().balanceOwed || 0) : 0;
+          tx.update(refOld, { balanceOwed: Math.max(0, oldBal - oldAffFee) });
+        }
+        if (newAff && newAffFee) {
+          const refNew = doc(db, "affiliates", newAff);
+          const sNew = await tx.get(refNew);
+          const newBal = sNew.exists() ? Number(sNew.data().balanceOwed || 0) : 0;
+          tx.set(refNew, { balanceOwed: newBal + newAffFee }, { merge: true });
+        }
+      }
+    });
+  } catch (err) {
+    console.error("editPaymentWithAdjust error", err);
+    throw err;
+  }
+}
+
+/* Delete payment with attempt to revert balances */
+async function deletePaymentWithAdjust(companyId, paymentId) {
+  try {
+    await runTransaction(db, async (tx) => {
+      const payRef = doc(db, "companies", companyId, "payments", paymentId);
+      const paySnap = await tx.get(payRef);
+      if (!paySnap.exists()) throw new Error("Pago no encontrado");
+      const pay = paySnap.data();
+
+      const amt = Number(pay.amount ?? pay.monto ?? 0);
+      const affId = pay.affiliateId || null;
+      const affFee = Number(pay.affiliateFee || 0);
+
+      // Update balances (subtract amount)
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const balancesSnap = await tx.get(balancesRef);
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+      const newCaja = oldCaja - amt;
+      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
+      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+
+      // movement to record elimination
+      const movRef = doc(collection(db, "companies", companyId, "movements"));
+      tx.set(movRef, { tipo: "egreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: amt, desc: `Eliminación pago ${paymentId}`, paymentId, createdAt: serverTimestamp() });
+
+      // Adjust affiliate balance (subtract affiliateFee if present)
+      if (affId && affFee) {
+        const affRef = doc(db, "affiliates", affId);
+        const affSnap = await tx.get(affRef);
+        const oldBal = affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
+        tx.update(affRef, { balanceOwed: Math.max(0, oldBal - affFee) });
+      }
+
+      // Delete payment
+      tx.delete(payRef);
+    });
+  } catch (err) {
+    console.error("deletePaymentWithAdjust", err);
+    throw err;
+  }
 }
 
 /* ===========================
@@ -424,7 +722,6 @@ function renderStats() {
   const canvas = document.getElementById("chartRevenue");
   if (!canvas) return;
 
-  // preparar datos
   const monthly = {};
   paymentsCache.forEach(p=>{
     const secs = p.createdAt?.seconds;
@@ -436,13 +733,7 @@ function renderStats() {
   const labels = Object.keys(monthly).sort();
   const data = labels.map(l=>monthly[l]);
 
-  // destruir previo si existe
-  try {
-    if (revenueChart) {
-      revenueChart.destroy();
-      revenueChart = null;
-    }
-  } catch (e) { console.warn("destroy chart err", e); }
+  try { if (revenueChart) { revenueChart.destroy(); revenueChart = null; } } catch(e) { console.warn(e); }
 
   const ctx = canvas.getContext("2d");
   revenueChart = new Chart(ctx,{
@@ -453,53 +744,21 @@ function renderStats() {
 }
 
 /* ===========================
-   REGISTER PAYMENT (modal)
-   =========================== */
-btnOpen?.addEventListener("click", () => modal.classList.remove("hidden"));
-btnCancel?.addEventListener("click", () => modal.classList.add("hidden"));
-btnReload?.addEventListener("click", () => loadAll());
-
-document.getElementById("formRegister").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  await submitRegister();
-});
-
-async function submitRegister() {
-  const companyId = selCompany.value;
-  const amount = Number(inpAmount.value || 0);
-  const monthsPaid = Number(inpMonths.value || 0);
-  const promoCode = inpPromo.value.trim() || null;
-  const affiliateId = selAffiliate.value || null;
-  const note = inpNote.value || null;
-
-  if (!companyId || !amount || monthsPaid <= 0) return alert("Completa campos obligatorios");
-
-  try {
-    // httpsCallable a la cloud function "recordPayment"
-    const recordPayment = httpsCallable(functions, "recordPayment");
-    const res = await recordPayment({ companyId, amount, monthsPaid, promoCode, affiliateId, createdByNote: note });
-    if (res.data?.success) {
-      alert("Pago registrado: " + res.data.paymentId);
-      modal.classList.add("hidden");
-      await loadAll();
-    } else {
-      alert("Respuesta inesperada del servidor.");
-    }
-  } catch (err) {
-    console.error("submitRegister error", err);
-    alert("Error registrando pago: " + (err.message || err));
-  }
-}
-
-/* ===========================
    UTILS
    =========================== */
 function escapeHtml(s) {
-  if (!s) return '';
+  if (!s && s !== 0) return '';
   return String(s).replace(/[&<>"'`=\/]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c]));
 }
 
+/* Event: when affiliate select changes we show/hide affiliateFeeRow */
+selAffiliate?.addEventListener("change", () => {
+  if (!selAffiliate) return;
+  if (selAffiliate.value) affiliateFeeRow.classList.remove("hidden");
+  else affiliateFeeRow.classList.add("hidden");
+});
+
 /* bootstrap (tabs already client-side) */
 document.addEventListener("DOMContentLoaded", () => {
-  // nothing else; auth will trigger loadAll()
+  // nothing else; auth triggers loadAll()
 });

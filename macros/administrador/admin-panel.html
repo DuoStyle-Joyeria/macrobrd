@@ -14,7 +14,7 @@
 </head>
 <body class="luci bg-slate-50">
 
-  <!-- LOGIN / REGISTER OVERLAY (usa el mismo flujo que tu app principal) -->
+  <!-- LOGIN / REGISTER OVERLAY -->
   <div id="authOverlay" class="fixed inset-0 z-[999] bg-black/30 flex items-center justify-center p-4">
     <div class="bg-white rounded p-6 w-full max-w-md shadow">
       <h2 class="text-xl font-semibold mb-3">Acceso — Panel Administrador</h2>
@@ -103,7 +103,7 @@
         <div class="table-responsive overflow-x-auto">
           <table class="w-full text-sm" id="tblAffiliates">
             <thead>
-              <tr><th>Nombre</th><th>Teléfono</th><th>Saldo</th><th>% Comisión</th><th>Acciones</th></tr>
+              <tr><th>Nombre</th><th>Teléfono</th><th>Saldo</th><th>Acciones</th></tr>
             </thead>
             <tbody id="tbAffiliates"></tbody>
           </table>
@@ -130,7 +130,9 @@
     <section id="tab-estadisticas" class="tabcontent hidden">
       <div class="bg-white p-4 rounded shadow">
         <h2 class="font-semibold mb-4">Estadísticas</h2>
-        <canvas id="chartRevenue" class="w-full h-64"></canvas>
+        <div style="height:320px">
+          <canvas id="chartRevenue" class="w-full h-full"></canvas>
+        </div>
       </div>
     </section>
   </div>
@@ -141,12 +143,24 @@
       <h3 class="font-semibold text-lg mb-3">Registrar Pago</h3>
       <form id="formRegister" class="space-y-3">
         <div><label class="text-sm">Empresa (companyId)</label><select id="selCompany" class="w-full border rounded p-2"></select></div>
-        <div><label class="text-sm">Monto (COP)</label><input id="inpAmount" type="number" min="0" value="80000" class="w-full border rounded p-2"></div>
+        <div><label class="text-sm">Monto (COP)</label><input id="inpAmount" type="number" min="0" value="80000" class="w-full border rounded p-2" required></div>
         <div class="grid grid-cols-2 gap-2">
-          <div><label>Meses pagados</label><input id="inpMonths" type="number" min="1" value="1" class="w-full border rounded p-2"></div>
+          <div><label>Meses pagados</label><input id="inpMonths" type="number" min="1" value="1" class="w-full border rounded p-2" required></div>
           <div><label>Promo (opc)</label><input id="inpPromo" type="text" placeholder="PAY2GET3" class="w-full border rounded p-2"></div>
         </div>
-        <div><label>Afiliado (opc)</label><select id="selAffiliate" class="w-full border rounded p-2"><option value="">— Ninguno —</option></select></div>
+
+        <div>
+          <label>Afiliado (opc)</label>
+          <select id="selAffiliate" class="w-full border rounded p-2"><option value="">— Ninguno —</option></select>
+        </div>
+
+        <!-- campo que aparece solo si hay afiliado seleccionado -->
+        <div id="affiliateFeeRow" class="hidden">
+          <label>Monto fijo para afiliado (COP)</label>
+          <input id="affiliateFee" type="number" min="0" value="0" class="w-full border rounded p-2">
+          <p class="text-xs text-slate-500">Valor fijo a sumar al saldo del afiliado cada vez que la empresa paga.</p>
+        </div>
+
         <div><label>Nota</label><input id="inpNote" type="text" class="w-full border rounded p-2"></div>
         <div class="flex justify-end gap-2">
           <button type="button" id="btnCancel" class="px-3 py-2 border rounded">Cancelar</button>
@@ -159,20 +173,20 @@
   <!-- MODAL crear afiliado -->
   <div id="modalAffiliate" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
     <div class="bg-white rounded p-6 w-full max-w-md shadow">
-      <h3 class="font-semibold text-lg mb-3">Crear Afiliado</h3>
+      <h3 class="font-semibold text-lg mb-3">Crear / Editar Afiliado</h3>
       <form id="formAffiliate" class="space-y-3">
         <input id="affName" type="text" placeholder="Nombre completo" class="w-full border rounded p-2" required>
         <input id="affPhone" type="text" placeholder="Teléfono (opcional)" class="w-full border rounded p-2">
-        <input id="affPct" type="number" min="0" max="100" value="30" class="w-full border rounded p-2" placeholder="% comisión">
+        <input id="affIdHidden" type="hidden">
         <div class="flex justify-end gap-2">
           <button type="button" id="btnCancelAffiliate" class="px-3 py-2 border rounded">Cancelar</button>
-          <button id="btnCreateAffiliate" class="px-3 py-2 bg-emerald-600 text-white rounded">Crear</button>
+          <button id="btnCreateAffiliate" class="px-3 py-2 bg-emerald-600 text-white rounded">Guardar</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- jsPDF para exportar -->
+  <!-- jsPDF para exportar (opcional) -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.25/dist/jspdf.plugin.autotable.min.js"></script>
 
