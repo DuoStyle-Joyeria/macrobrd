@@ -233,61 +233,110 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-async function applyRoleVisibility(companyId) {
+// Reemplaza tu función applyRoleVisibility por esta versión
+async function applyRoleVisibility(companyIdParam) {
+  // admite companyId como parámetro o usa la variable global companyId
+  const cid = companyIdParam || companyId || window.companyId || null;
+  if (!cid) {
+    console.error("❌ applyRoleVisibility: companyId no disponible.");
+    return;
+  }
+
   if (userRole === "empleado") {
-    // 🔒 Limitar pestañas visibles
+    // 🗂 Pestañas permitidas para empleado
+    const allowedTabs = ["ventas", "egresos", "ingresos", "inventario"];
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
-      btn.style.display = (t === "ventas" || t === "egresos" || t === "ingresos" || t === "inventario") ? "" : "none";
+      btn.style.display = allowedTabs.includes(t) ? "" : "none";
     });
     $("[data-tab='ventas']").click();
 
-    // 🔒 Modificar tarjeta de "Caja Empresa" → ahora será "Ventas de hoy"
-    const cajaTitle = document.querySelector(".bg-white .text-sm.text-slate-500"); 
+    // 🎯 Seleccionar la tarjeta EXACTA de "Caja Empresa"
     const cajaValor = document.getElementById("kpiCajaEmpresa");
-    const cajaBotones = cajaValor?.nextElementSibling; 
-    const cajaRange = document.getElementById("kpiCajaRangeResult");
+    const cajaCard = cajaValor ? cajaValor.closest(".bg-white") : null;
+    const cajaTitle = cajaCard ? cajaCard.querySelector(".text-sm.text-slate-500") : null;
+    const cajaBotones = cajaCard ? cajaCard.querySelector(".mt-2.text-xs") : null;
+    const cajaRange = cajaCard ? cajaCard.querySelector("#kpiCajaRangeResult") : null;
 
     if (cajaTitle && cajaValor) {
       cajaTitle.textContent = "💰 Ventas de hoy";
       cajaValor.textContent = "Cargando...";
-      // 🚫 Marcar este bloque como "bloqueado"
+      // bloquear para que otras subs no lo reescriban
       cajaValor.setAttribute("data-locked", "true");
     }
-    if (cajaBotones) cajaBotones.style.display = "none";
+    if (cajaBotones) cajaBotones.style.display = "none"; // ocultar botones 7d/30d/rango
     if (cajaRange) cajaRange.style.display = "none";
 
-    // 🔄 Consultar solo las ventas de HOY
+    // 🔄 Cancela suscripción previa a "ventas hoy" (evita duplicados al recargar)
     try {
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
+      if (window._salesTodayUnsub && typeof window._salesTodayUnsub === "function") {
+        try { window._salesTodayUnsub(); } catch(e){/* ignore */ }
+        window._salesTodayUnsub = null;
+      }
 
-      const q = query(
-        collection(db, "ventas"),
-        where("companyId", "==", companyId),
-        where("fecha", ">=", today.getTime()),
-        where("fecha", "<", tomorrow.getTime())
-      );
-      const snapshot = await getDocs(q);
+      // 📅 rango hoy (client-side filter, más robusto frente a distintos formatos de fecha)
+      const start = new Date(); start.setHours(0,0,0,0);
+      const end = new Date(start); end.setDate(start.getDate() + 1);
 
-      let totalHoy = 0;
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        totalHoy += data.total || 0;
+      // ✳️ apuntar a la colección correcta: companies/{cid}/sales
+      const salesColl = collection(db, "companies", cid, "sales");
+      const salesQuery = query(salesColl, orderBy("createdAt", "desc")); // orderBy mejora la UX
+
+      const unsub = onSnapshot(salesQuery, (snap) => {
+        let totalHoy = 0;
+
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+
+          // intentar obtener la fecha de creación de varias formas
+          let created = null;
+          if (data.createdAt && typeof data.createdAt.toDate === "function") {
+            created = data.createdAt.toDate();
+          } else if (data.createdAt && data.createdAt.seconds) {
+            created = new Date(data.createdAt.seconds * 1000);
+          } else if (data.fecha) {
+            // fecha puede ser número (ms) o string
+            try {
+              created = (typeof data.fecha === "number") ? new Date(data.fecha) : new Date(data.fecha);
+            } catch (e) {
+              created = null;
+            }
+          }
+
+          if (!created) return; // si no hay fecha, no lo contamos para hoy
+
+          if (created >= start && created < end) {
+            // sumar total; varios nombres posibles para total por seguridad
+            const t = Number(data.total ?? data.totalAmount ?? data.totalVenta ?? data.total_sales ?? 0) || 0;
+            totalHoy += t;
+          }
+        });
+
+        if (cajaValor) cajaValor.textContent = `$${totalHoy.toLocaleString()}`;
+      }, (err) => {
+        console.error("onSnapshot ventas hoy error:", err);
+        if (cajaValor) cajaValor.textContent = "$0";
       });
 
-      if (cajaValor) cajaValor.textContent = `$${totalHoy.toLocaleString()}`;
+      // guardar para poder cancelar al volver a llamar
+      window._salesTodayUnsub = unsub;
+      // opcional: si tienes la lista global unsubscribers:
+      if (typeof unsubscribers !== "undefined" && Array.isArray(unsubscribers)) unsubscribers.push(unsub);
+
     } catch (err) {
       console.error("❌ Error cargando ventas de hoy:", err);
       if (cajaValor) cajaValor.textContent = "$0";
     }
+
   } else {
-    // 👑 Admin → mostrar todo normal
+    // Admin -> mostrar todo
     $$(".tab-btn").forEach(btn => btn.style.display = "");
+    // asegúrate de desbloquear la caja si existiera
+    const caja = document.getElementById("kpiCajaEmpresa");
+    if (caja) caja.removeAttribute("data-locked");
   }
 }
+
 
 
 
