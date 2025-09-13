@@ -604,63 +604,6 @@ async function submitRegister() {
 }
 
 
-async function invokeRecordPayment(payload) {
-  try {
-    // Intenta llamar a la Cloud Function si la tienes (opcional)
-    const fn = httpsCallable(functions, "recordPayment");
-    const callRes = await fn(payload);
-    if (callRes && callRes.data && callRes.data.success) {
-      return { success: true, paymentId: callRes.data.paymentId };
-    }
-    // si callable no devuelve success seguimos a fallback
-  } catch (err) {
-    // no detener: fallback al cliente
-    console.warn("recordPayment callable failed, fallback to client. Err:", err && err.message);
-  }
-
-  // FALLBACK: addDoc (no transacción) luego runTransaction para ajustes
-  try {
-    const { companyId, amount, monthsPaid, promoCode, affiliateId, affiliateFee = 0, createdByNote } = payload;
-    // 1) crear documento de pago (fuera de la transacción)
-    const paymentRef = await addDoc(collection(db, "companies", companyId, "payments"), {
-      amount,
-      monthsPaid,
-      promoCode: promoCode || null,
-      affiliateId: affiliateId || null,
-      affiliateFee: affiliateFee || 0,
-      note: createdByNote || null,
-      createdAt: serverTimestamp()
-    });
-    const paymentId = paymentRef.id;
-
-    // 2) ahora en transacción sólo leemos y actualizamos balances / afiliados
-    await runTransaction(db, async (tx) => {
-      const balancesRef = doc(db, "companies", companyId, "state", "balances");
-      const balancesSnap = await tx.get(balancesRef);
-      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
-      const newCaja = oldCaja + Number(amount || 0);
-      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
-      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
-
-      // movimiento
-      const movRef = doc(collection(db, "companies", companyId, "movements"));
-      tx.set(movRef, { tipo: "ingreso", cuenta: "cajaEmpresa", fecha: new Date().toISOString().slice(0,10), monto: amount, desc: `Pago ID ${paymentId}`, paymentId, createdAt: serverTimestamp() });
-
-      // ajustar afiliado
-      if (affiliateId && Number(affiliateFee || 0) > 0) {
-        const affRef = doc(db, "affiliates", affiliateId);
-        const affSnap = await tx.get(affRef);
-        const oldBal = affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
-        tx.set(affRef, { balanceOwed: oldBal + Number(affiliateFee || 0) }, { merge: true });
-      }
-    });
-
-    return { success: true, paymentId };
-  } catch (err) {
-    console.error("Fallback recordPayment error:", err);
-    throw err;
-  }
-}
 
 
 /* ===========================
