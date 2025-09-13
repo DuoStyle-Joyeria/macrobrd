@@ -243,7 +243,7 @@ async function applyRoleVisibility(companyId) {
     // 🔒 Limitar pestañas visibles
     $$(".tab-btn").forEach(btn => {
       const t = btn.dataset.tab;
-      btn.style.display = (t === "ventas" || t === "egresos" || t === "inventario") ? "" : "none";
+      btn.style.display = (t === "ventas" || t === "egresos" || t === "ingresos" || t === "inventario") ? "" : "none";
     });
     $("[data-tab='ventas']").click();
 
@@ -420,7 +420,6 @@ function subscribeSalesHoy(companyId) {
 
   unsubscribers.push(unsub);
 }
-
 
 
 /* ======================
