@@ -353,26 +353,41 @@ function renderAffiliates() {
     if (!a) return alert("Afiliado no encontrado");
     const owe = Number(a.balanceOwed || 0);
     if (!owe || owe <= 0) return alert("No hay saldo pendiente para este afiliado.");
-    if (!confirm(`Confirma pagar ${money(owe)} a ${a.name}? Esto restará del cashBalance de la empresa propietaria si aplica.`)) return;
+    if (!confirm(`Confirma pagar ${money(owe)} a ${a.name}? Esto registrará el pago en la plataforma y dejará a cero su saldo.`)) return;
 
-    // For simplicity: we will mark affiliate paid (set balanceOwed=0). Optionally reduce from company cash (not associated to a specific company here).
+    // Prefer server-side: call callable function 'payAffiliate' (must exist).
+    try {
+      const fn = httpsCallable(functions, "payAffiliate");
+      const res = await fn({ affiliateId: id, amount: owe });
+      if (res && res.data && res.data.success) {
+        alert("Pago de afiliado registrado (server).");
+        await loadAffiliates();
+        await loadCompanies();
+        return;
+      }
+    } catch (err) {
+      // If callable not present or failed, fallback to client transaction (best-effort)
+      console.warn("payAffiliate callable failed -> fallback to client tx:", err);
+    }
+
+    // fallback: client-side transaction that registers payout doc under affiliates/{id}/payouts
     try {
       await runTransaction(db, async (tx) => {
         const affRef = doc(db, "affiliates", id);
         const affSnap = await tx.get(affRef);
         const current = affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
         if (current <= 0) return;
-        // In a real system we would pick which company pays the affiliate; here we just zero affiliate balance and record a payout doc in 'affiliates/{id}/payouts'
         const payoutRef = doc(collection(db, "affiliates", id, "payouts"));
-        tx.set(payoutRef, { amount: current, paidAt: serverTimestamp() });
+        // reads done above, now writes:
+        tx.set(payoutRef, { amount: current, paidAt: serverTimestamp(), createdBy: auth.currentUser?.uid || null });
         tx.update(affRef, { balanceOwed: 0 });
       });
-      alert("Comisión pagada y registrada.");
+      alert("Comisión pagada y registrada (cliente).");
       await loadAffiliates();
-      await loadCompanies(); // to refresh KPIs
+      await loadCompanies();
     } catch (err) {
-      console.error("pay affiliate", err);
-      alert("Error al pagar afiliado: " + (err.message||err));
+      console.error("pay affiliate fallback error", err);
+      alert("Error al pagar afiliado: " + (err.message || err));
     }
   });
 
@@ -458,20 +473,24 @@ async function createOrUpdateAffiliate() {
 /* =========================
    PAYMENTS: carga y render (parte 2)
    ========================= */
+
+/**
+ * Ahora: ADMIN payments se guardan en la colección raíz 'admin_payments'
+ * - No modificamos datos dentro de companies/* (no tocamos su caja ni movimientos).
+ * - admin_payments: { companyId, amount, monthsPaid, promoCode, affiliateId, affiliateFee, note, createdAt, createdBy }
+ *
+ * Nota: Pagos históricos que estuvieran en companies/{id}/payments no se borran aquí,
+ * este panel ahora muestra exclusivamente lo creado desde el admin (admin_payments).
+ */
+
 async function loadRecentPayments() {
   try {
     const payments = [];
-    for (const c of companiesCache) {
-      const companyRef = doc(db, "companies", c.id);
-      const ps = await getDocs(query(collection(companyRef, "payments"), orderBy("createdAt", "desc"))).catch(()=>({docs:[]}));
-      ps.docs.forEach(d => payments.push({ companyId: c.id, id: d.id, ...d.data() }));
-    }
-    // sort by createdAt desc
-    payments.sort((a,b)=> {
-      const ta = a.createdAt?.seconds ? a.createdAt.seconds : 0;
-      const tb = b.createdAt?.seconds ? b.createdAt.seconds : 0;
-      return tb - ta;
-    });
+    // Traer pagos creados desde este panel (admin_payments)
+    const q = query(collection(db, "admin_payments"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d => payments.push({ id: d.id, ...d.data() }));
+
     paymentsCache = payments;
     renderPayments(payments.slice(0,200));
   } catch (err) {
@@ -494,39 +513,37 @@ function renderPayments(arr) {
       <td>${escapeHtml(p.affiliateId||p.sellerId||p.affiliateName||'-')}</td>
       <td>${money(p.affiliateFee||0)}</td>
       <td>
-        <button class="px-2 py-1 border rounded btnInvoice" data-company="${p.companyId}" data-id="${p.id}">PDF</button>
-        <button class="px-2 py-1 border rounded btnEditPayment" data-company="${p.companyId}" data-id="${p.id}">Editar</button>
-        <button class="px-2 py-1 border rounded btnDelPayment" data-company="${p.companyId}" data-id="${p.id}">Eliminar</button>
+        <button class="px-2 py-1 border rounded btnInvoice" data-id="${p.id}">PDF</button>
+        <button class="px-2 py-1 border rounded btnEditPayment" data-id="${p.id}">Editar</button>
+        <button class="px-2 py-1 border rounded btnDelPayment" data-id="${p.id}">Eliminar</button>
       </td>`;
     tbPayments.appendChild(tr);
   });
 
   $$(".btnInvoice").forEach(b=>{
     b.onclick = async () => {
-      const companyId = b.dataset.company;
       const paymentId = b.dataset.id;
       try {
         const gen = httpsCallable(functions, "generateInvoice");
-        const res = await gen({ companyId, paymentId });
-       if (res.data && res.data.file) {
-  const bin = atob(res.data.file);
-  const len = bin.length;
-  const buf = new Uint8Array(len);
-  for (let i=0;i<len;i++) buf[i]=bin.charCodeAt(i);
-  const blob = new Blob([buf], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  // como backend no manda filename, usamos plan B:
-  a.download = `factura_${companyId}_${paymentId}.pdf`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-} else {
-  alert("No se recibió PDF del servidor.");
-}
-
+        // send paymentId (server side should fetch data and return base64 file in res.data.file)
+        const res = await gen({ paymentId });
+        if (res.data && res.data.file) {
+          const bin = atob(res.data.file);
+          const len = bin.length;
+          const buf = new Uint8Array(len);
+          for (let i=0;i<len;i++) buf[i]=bin.charCodeAt(i);
+          const blob = new Blob([buf], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `factura_${paymentId}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        } else {
+          alert("No se recibió PDF del servidor.");
+        }
       } catch (err) {
         console.error("invoice err", err);
         alert("Error solicitando factura: "+(err.message||err));
@@ -536,12 +553,11 @@ function renderPayments(arr) {
 
   $$(".btnEditPayment").forEach(b=>{
     b.onclick = async ()=>{
-      const cid = b.dataset.company;
       const id = b.dataset.id;
-      const p = paymentsCache.find(x=> x.companyId===cid && x.id===id);
+      const p = paymentsCache.find(x=> x.id===id);
       if (!p) return alert("Pago no encontrado");
       // prefill modal
-      if (selCompany) selCompany.value = cid;
+      if (selCompany) selCompany.value = p.companyId || "";
       if (inpAmount) inpAmount.value = p.amount ?? p.monto ?? 0;
       if (inpMonths) inpMonths.value = p.monthsPaid ?? p.months ?? 1;
       if (inpPromo) inpPromo.value = p.promoCode || "";
@@ -549,7 +565,6 @@ function renderPayments(arr) {
       if (affiliateFee) affiliateFee.value = p.affiliateFee || 0;
       if (inpNote) inpNote.value = p.note || p.createdByNote || "";
       if (modal) {
-        modal.dataset.editingCompany = cid;
         modal.dataset.editingPayment = id;
       }
       if (affiliateFeeRow && selAffiliate) affiliateFeeRow.classList.toggle("hidden", !selAffiliate.value);
@@ -559,11 +574,10 @@ function renderPayments(arr) {
 
   $$(".btnDelPayment").forEach(b=>{
     b.onclick = async ()=>{
-      const cid = b.dataset.company;
       const id = b.dataset.id;
-      if (!confirm("Eliminar pago? Esto ajustará saldos (se intentará revertir el pago).")) return;
+      if (!confirm("Eliminar pago? Esto ajustará saldos en la plataforma (NO tocará cuentas de las empresas).")) return;
       try {
-        await deletePaymentWithAdjust(cid, id);
+        await deletePaymentWithAdjust(id);
         alert("Pago eliminado y saldos ajustados (si aplica).");
         await loadAll();
       } catch (err) {
@@ -576,7 +590,8 @@ function renderPayments(arr) {
 
 /* =========================
    INVOKE RECORD PAYMENT
-   - create payment (addDoc) then transaction that reads-first-then-writes
+   - create payment in 'admin_payments' then adjust platform balances and affiliate balances
+   - IMPORTANT: NO se modifica nada dentro de companies/* (NO tocar caja ni movimientos de empresas)
    ========================= */
 async function invokeRecordPayment(payload) {
   try {
@@ -586,62 +601,54 @@ async function invokeRecordPayment(payload) {
     if (!companyId) throw new Error("Falta companyId");
     if (!amount || Number(amount) <= 0) throw new Error("Monto inválido");
 
-    // 1) create payment doc (outside transaction)
-    const paymentRef = await addDoc(collection(db, "companies", companyId, "payments"), {
+    // 1) create payment doc inside admin_payments (root) -- this is the admin ledger
+    const paymentRef = await addDoc(collection(db, "admin_payments"), {
+      companyId,
       amount: Number(amount),
       monthsPaid: Number(monthsPaid || 0),
       promoCode: promoCode || null,
       affiliateId: affiliateId || null,
       affiliateFee: Number(affiliateFee || 0),
       note: createdByNote || null,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      createdBy: auth.currentUser ? auth.currentUser.uid : null
     });
     const paymentId = paymentRef.id;
 
-    // 2) Transaction: read everything first, then write
+    // 2) Transaction: update platform balances and affiliate balance (reads first)
     await runTransaction(db, async (tx) => {
-      const balancesRef = doc(db, "companies", companyId, "state", "balances");
-      const compRef = doc(db, "companies", companyId);
+      const platformBalancesRef = doc(db, "platform", "state", "balances"); // platform-level balances
       const affRef = affiliateId ? doc(db, "affiliates", affiliateId) : null;
 
       // READS
-      const balancesSnap = await tx.get(balancesRef);
-      const compSnap = await tx.get(compRef);
+      const platformBalancesSnap = await tx.get(platformBalancesRef);
       const affSnap = affRef ? await tx.get(affRef) : null;
 
-      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+      const oldPlatformCaja = platformBalancesSnap.exists() ? Number(platformBalancesSnap.data().cajaPlataforma || 0) : 0;
       const oldAffBal = affSnap && affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
 
-      const newCaja = oldCaja + Number(amount || 0);
+      const newPlatformCaja = oldPlatformCaja + Number(amount || 0);
 
       // WRITES (after reads)
-      if (balancesSnap.exists()) {
-        tx.update(balancesRef, { cajaEmpresa: newCaja });
+      if (platformBalancesSnap.exists()) {
+        tx.update(platformBalancesRef, { cajaPlataforma: newPlatformCaja });
       } else {
-        tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+        tx.set(platformBalancesRef, { cajaPlataforma: newPlatformCaja, deudasTotales: 0, createdAt: serverTimestamp() });
       }
 
-      // register movement
-      const movRef = doc(collection(db, "companies", companyId, "movements"));
+      // record movement in platform/movements
+      const movRef = doc(collection(db, "platform", "movements"));
       tx.set(movRef, {
         tipo: "ingreso",
-        cuenta: "cajaEmpresa",
+        cuenta: "cajaPlataforma",
         fecha: new Date().toISOString().slice(0,10),
         monto: Number(amount || 0),
-        desc: `Pago ID ${paymentId}`,
+        desc: `Pago admin ID ${paymentId} (empresa ${companyId})`,
         paymentId,
         createdAt: serverTimestamp()
       });
 
-      // update company subscription & cashBalance
-      const nextDueDate = monthsPaid ? Timestamp.fromDate(new Date(Date.now() + (Number(monthsPaid) * 30 * 24 * 60 * 60 * 1000))) : compSnap.exists() && compSnap.data().subscriptionEndsAt ? compSnap.data().subscriptionEndsAt : null;
-      tx.set(compRef, {
-        subscriptionStatus: "activo",
-        ...(nextDueDate ? { subscriptionEndsAt: nextDueDate } : {}),
-        cashBalance: newCaja
-      }, { merge: true });
-
-      // affiliate adjustment
+      // update affiliate owed balance (global affiliate record)
       if (affiliateId && Number(affiliateFee || 0) > 0) {
         tx.set(affRef, { balanceOwed: oldAffBal + Number(affiliateFee || 0) }, { merge: true });
       }
@@ -668,7 +675,6 @@ if (formRegister) {
 if (btnOpen) btnOpen.addEventListener("click", ()=>{
   if (modal) {
     delete modal.dataset.editingPayment;
-    delete modal.dataset.editingCompany;
   }
   if (selCompany) selCompany.value = companiesCache[0]?.id || "";
   if (inpAmount) inpAmount.value = 80000;
@@ -685,13 +691,12 @@ if (btnCancel) btnCancel.addEventListener("click", ()=> {
   modal && modal.classList.add("hidden");
   if (modal) {
     delete modal.dataset.editingPayment;
-    delete modal.dataset.editingCompany;
   }
 });
 
 if (btnReload) btnReload.addEventListener("click", ()=> loadAll());
 
-if (selAffiliate) selAffiliate.addEventListener("change", ()=> {
+if (selAffiliate) selAffiliate.addEventListener("change", () => {
   if (!selAffiliate) return;
   if (affiliateFeeRow) {
     if (selAffiliate.value) affiliateFeeRow.classList.remove("hidden");
@@ -714,17 +719,15 @@ async function submitRegister() {
   if (!companyId || !amount || monthsPaid <= 0) return alert("Completa campos obligatorios: empresa, monto y meses.");
 
   const editingPayment = modal?.dataset?.editingPayment;
-  const editingCompany = modal?.dataset?.editingCompany;
 
   try {
-    if (editingPayment && editingCompany) {
-      await editPaymentWithAdjust(editingCompany, editingPayment, {
-        amount, monthsPaid, promoCode, affiliateId, affiliateFee: affiliateFeeVal, note
+    if (editingPayment) {
+      await editPaymentWithAdjust(editingPayment, {
+        companyId, amount, monthsPaid, promoCode, affiliateId, affiliateFee: affiliateFeeVal, note
       });
       alert("Pago editado correctamente.");
       modal && modal.classList.add("hidden");
       delete modal.dataset.editingPayment;
-      delete modal.dataset.editingCompany;
       await loadAll();
       return;
     }
@@ -744,33 +747,31 @@ async function submitRegister() {
   }
 }
 
+
 /* =========================
-   EDIT PAYMENT WITH ADJUST
-   - transaction ensures reads first
+   EDIT PAYMENT WITH ADJUST (admin_payments)
+   - Operamos solo sobre admin_payments y platform balances (NO tocar companies/*)
+   - Transacción: LEER todo primero, luego escribir.
    ========================= */
-async function editPaymentWithAdjust(companyId, paymentId, newData) {
+async function editPaymentWithAdjust(paymentId, newData) {
   try {
     await runTransaction(db, async (tx) => {
-      const payRef = doc(db, "companies", companyId, "payments", paymentId);
-      const balancesRef = doc(db, "companies", companyId, "state", "balances");
-      const compRef = doc(db, "companies", companyId);
+      const payRef = doc(db, "admin_payments", paymentId);
+      const platformBalancesRef = doc(db, "platform", "state", "balances");
 
       // READS
       const paySnap = await tx.get(payRef);
-      if (!paySnap.exists()) throw new Error("Pago no encontrado");
+      if (!paySnap.exists()) throw new Error("Pago no encontrado (admin).");
       const old = paySnap.data();
 
-      const balancesSnap = await tx.get(balancesRef);
-      const compSnap = await tx.get(compRef);
-
-      const oldAff = old.affiliateId || null;
-      const newAff = newData.affiliateId || null;
-      const affRefOld = oldAff ? doc(db, "affiliates", oldAff) : null;
-      const affRefNew = newAff ? doc(db, "affiliates", newAff) : null;
+      const platformSnap = await tx.get(platformBalancesRef);
+      const affRefOld = old.affiliateId ? doc(db, "affiliates", old.affiliateId) : null;
+      const affRefNew = newData.affiliateId ? doc(db, "affiliates", newData.affiliateId) : null;
       const affSnapOld = affRefOld ? await tx.get(affRefOld) : null;
       const affSnapNew = affRefNew ? await tx.get(affRefNew) : null;
 
-      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+      const oldPlatformCaja = platformSnap.exists() ? Number(platformSnap.data().cajaPlataforma || 0) : 0;
+
       const oldAmount = Number(old.amount ?? old.monto ?? 0);
       const newAmount = Number(newData.amount ?? newData.monto ?? 0);
       const diff = newAmount - oldAmount;
@@ -778,7 +779,7 @@ async function editPaymentWithAdjust(companyId, paymentId, newData) {
       const oldAffFee = Number(old.affiliateFee || 0);
       const newAffFee = Number(newData.affiliateFee || 0);
 
-      const newCaja = oldCaja + diff;
+      const newPlatformCaja = oldPlatformCaja + diff;
 
       // WRITES
       tx.update(payRef, {
@@ -791,13 +792,13 @@ async function editPaymentWithAdjust(companyId, paymentId, newData) {
         updatedAt: serverTimestamp()
       });
 
-      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
-      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+      if (platformSnap.exists()) tx.update(platformBalancesRef, { cajaPlataforma: newPlatformCaja });
+      else tx.set(platformBalancesRef, { cajaPlataforma: newPlatformCaja, deudasTotales: 0, createdAt: serverTimestamp() });
 
-      const movRef = doc(collection(db, "companies", companyId, "movements"));
+      const movRef = doc(collection(db, "platform", "movements"));
       tx.set(movRef, {
         tipo: diff >= 0 ? "ingreso" : "egreso",
-        cuenta: "cajaEmpresa",
+        cuenta: "cajaPlataforma",
         fecha: new Date().toISOString().slice(0,10),
         monto: Math.abs(diff),
         desc: `Ajuste pago ${paymentId} (edit)`,
@@ -805,7 +806,10 @@ async function editPaymentWithAdjust(companyId, paymentId, newData) {
         createdAt: serverTimestamp()
       });
 
-      // affiliate adjustments
+      // Affiliate adjustments (global affiliates)
+      const oldAff = old.affiliateId || null;
+      const newAff = newData.affiliateId || null;
+
       if (oldAff && oldAff === newAff) {
         const delta = newAffFee - oldAffFee;
         if (delta !== 0 && affSnapOld) {
@@ -822,12 +826,6 @@ async function editPaymentWithAdjust(companyId, paymentId, newData) {
           tx.set(affRefNew, { balanceOwed: newBal + newAffFee }, { merge: true });
         }
       }
-
-      // company subscription update
-      const currentSubEnds = compSnap.exists() ? compSnap.data()?.subscriptionEndsAt : null;
-      let nextDueDate = currentSubEnds && currentSubEnds.seconds ? new Date(currentSubEnds.seconds * 1000) : new Date();
-      nextDueDate = new Date(nextDueDate.getTime() + (Number(newData.monthsPaid || 0) * 30 * 24 * 60 * 60 * 1000));
-      tx.update(compRef, { subscriptionEndsAt: Timestamp.fromDate(nextDueDate), cashBalance: newCaja }, { merge: true });
     });
   } catch (err) {
     console.error("editPaymentWithAdjust error", err);
@@ -835,43 +833,41 @@ async function editPaymentWithAdjust(companyId, paymentId, newData) {
   }
 }
 
-
 /* =========================
-   DELETE PAYMENT WITH ADJUST
+   DELETE PAYMENT WITH ADJUST (admin_payments)
+   - Operamos solo sobre admin_payments y platform balances
+   - Transacción: LEER todo primero, luego escribir.
    ========================= */
-async function deletePaymentWithAdjust(companyId, paymentId) {
+async function deletePaymentWithAdjust(paymentId) {
   try {
     await runTransaction(db, async (tx) => {
-      const payRef = doc(db, "companies", companyId, "payments", paymentId);
-      const balancesRef = doc(db, "companies", companyId, "state", "balances");
-      const compRef = doc(db, "companies", companyId);
+      const payRef = doc(db, "admin_payments", paymentId);
+      const platformBalancesRef = doc(db, "platform", "state", "balances");
 
-      // --- READS (todas primero)
+      // READS
       const paySnap = await tx.get(payRef);
-      if (!paySnap.exists()) throw new Error("Pago no encontrado");
+      if (!paySnap.exists()) throw new Error("Pago no encontrado (admin).");
       const pay = paySnap.data();
 
-      const balancesSnap = await tx.get(balancesRef);
+      const platformSnap = await tx.get(platformBalancesRef);
       const affRef = pay.affiliateId ? doc(db, "affiliates", pay.affiliateId) : null;
       const affSnap = affRef ? await tx.get(affRef) : null;
-      const compSnap = await tx.get(compRef);
 
-      // --- cálculos
-      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+      const oldPlatformCaja = platformSnap.exists() ? Number(platformSnap.data().cajaPlataforma || 0) : 0;
       const amt = Number(pay.amount ?? pay.monto ?? 0);
-      const newCaja = oldCaja - amt;
+      const newPlatformCaja = oldPlatformCaja - amt;
 
-      // --- WRITES (todas después)
-      if (balancesSnap.exists()) {
-        tx.update(balancesRef, { cajaEmpresa: newCaja });
+      // WRITES
+      if (platformSnap.exists()) {
+        tx.update(platformBalancesRef, { cajaPlataforma: newPlatformCaja });
       } else {
-        tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+        tx.set(platformBalancesRef, { cajaPlataforma: newPlatformCaja, deudasTotales: 0, createdAt: serverTimestamp() });
       }
 
-      const movRef = doc(collection(db, "companies", companyId, "movements"));
+      const movRef = doc(collection(db, "platform", "movements"));
       tx.set(movRef, {
         tipo: "egreso",
-        cuenta: "cajaEmpresa",
+        cuenta: "cajaPlataforma",
         fecha: new Date().toISOString().slice(0, 10),
         monto: amt,
         desc: `Eliminación pago ${paymentId}`,
@@ -879,24 +875,19 @@ async function deletePaymentWithAdjust(companyId, paymentId) {
         createdAt: serverTimestamp()
       });
 
-      if (affRef && affSnap?.exists()) {
+      if (affRef && affSnap && affSnap.exists()) {
         const oldBal = Number(affSnap.data().balanceOwed || 0);
         const affFee = Number(pay.affiliateFee || 0);
         tx.update(affRef, { balanceOwed: Math.max(0, oldBal - affFee) });
       }
 
       tx.delete(payRef);
-
-      if (compSnap.exists()) {
-        tx.update(compRef, { cashBalance: newCaja });
-      }
     });
   } catch (err) {
     console.error("deletePaymentWithAdjust", err);
     throw err;
   }
 }
-
 
 /* =========================
    KPIs
@@ -938,8 +929,6 @@ function renderStats() {
 
 /* =========================
    EXTRA: change user password (admin)
-   - Tries to call cloud function 'adminChangePassword' (must be implemented in backend).
-   - If not available, shows instructions to use password reset email to user.
    ========================= */
 async function changeUserPassword(userEmail, newPassword) {
   try {
@@ -956,7 +945,7 @@ async function changeUserPassword(userEmail, newPassword) {
   }
 }
 
-/* UI: small dialog to change password for a user from companies list (button added by admin) */
+/* UI helper */
 async function promptChangePasswordFor(email) {
   const newPass = prompt(`Cambiar contraseña para ${email} — ingresa nueva contraseña (o deja vacío para enviar reset email):`);
   if (newPass === null) return; // cancel

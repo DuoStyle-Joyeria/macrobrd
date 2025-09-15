@@ -257,6 +257,7 @@ exports.registerPayment = onCall(async (request) => {
     const newExpiry = new Date(prevExpiry > now ? prevExpiry : now);
     newExpiry.setMonth(newExpiry.getMonth() + months);
 
+    // ✅ Guardamos el pago (tu historial)
     await companyRef.collection("payments").add({
       amount,
       months,
@@ -266,8 +267,9 @@ exports.registerPayment = onCall(async (request) => {
       createdBy: request.auth.uid,
     });
 
+    // 🚫 Ya NO alteramos cashBalance
+    // ✅ Opcional: mantener planExpiry si quieres renovar la suscripción
     await companyRef.update({
-      cashBalance: FieldValue.increment(amount),
       planExpiry: newExpiry,
     });
 
@@ -285,49 +287,6 @@ exports.registerPayment = onCall(async (request) => {
   }
 });
 
-// 👇 Alias para compatibilidad con tu frontend
-exports.recordPayment = exports.registerPayment;
-
-exports.listPayments = onCall(async (request) => {
-  try {
-    const { companyId } = request.data;
-    if (!companyId) {
-      throw new HttpsError("invalid-argument", "Falta companyId.");
-    }
-
-    const snap = await db
-      .collection("companies")
-      .doc(companyId)
-      .collection("payments")
-      .orderBy("createdAt", "desc")
-      .limit(50)
-      .get();
-
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  } catch (error) {
-    console.error("Error en listPayments:", error);
-    throw new HttpsError("internal", error.message || "Error interno");
-  }
-});
-
-exports.getCompanyCash = onCall(async (request) => {
-  try {
-    const { companyId } = request.data;
-    if (!companyId) {
-      throw new HttpsError("invalid-argument", "Falta companyId.");
-    }
-
-    const snap = await db.collection("companies").doc(companyId).get();
-    if (!snap.exists) {
-      throw new HttpsError("not-found", "Empresa no encontrada.");
-    }
-
-    return { cashBalance: snap.data().cashBalance || 0 };
-  } catch (error) {
-    console.error("Error en getCompanyCash:", error);
-    throw new HttpsError("internal", error.message || "Error interno");
-  }
-});
 
 
 
@@ -481,7 +440,7 @@ exports.changeUserPassword = onCall(async (request) => {
 /* ============================================================
    7) FACTURAS EN PDF (con CORS habilitado)
 ============================================================ */
-exports.generateInvoice = onRequest((req, res) => {
+exports.generateInvoiceHttp = onRequest((req, res) => {
   cors(req, res, async () => {
     try {
       const { companyName, amount, date } = req.body;
@@ -540,5 +499,50 @@ exports.cleanOldMemory = onSchedule("every 24 hours", async () => {
         );
       }
     }
+  }
+});
+
+
+
+/* ============================================================
+   9) AÑADIR AFILIADO
+============================================================ */
+
+exports.payAffiliate = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes estar autenticado.");
+    }
+
+    const { companyId, affiliateId, amount } = request.data;
+    if (!companyId || !affiliateId || !amount) {
+      throw new HttpsError("invalid-argument", "Faltan datos.");
+    }
+
+    const affRef = db
+      .collection("companies")
+      .doc(companyId)
+      .collection("affiliates")
+      .doc(affiliateId);
+
+    const affSnap = await affRef.get();
+    if (!affSnap.exists) {
+      throw new HttpsError("not-found", "Afiliado no encontrado.");
+    }
+
+    // 🔹 Crear un registro de pago
+    await affRef.collection("payouts").add({
+      amount,
+      paidAt: FieldValue.serverTimestamp(),
+      paidBy: request.auth.uid,
+    });
+
+    // 🔹 Resetear saldo
+    await affRef.update({ balance: 0 });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error en payAffiliate:", error);
+    throw new HttpsError("internal", error.message || "Error pagando afiliado");
   }
 });
