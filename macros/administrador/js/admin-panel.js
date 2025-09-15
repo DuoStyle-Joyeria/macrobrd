@@ -24,7 +24,7 @@ import {
   serverTimestamp,
   Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
+import { getFunctions } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
 
 /* CONFIG FIREBASE */
 const firebaseConfig = {
@@ -99,7 +99,7 @@ let affiliatesCache = [];
 let paymentsCache = [];
 let revenueChart = null;
 
-/* AUTH UI */
+/* ------------------ AUTH ------------------ */
 if (btnShowRegister) btnShowRegister.addEventListener("click", () => registerBox && registerBox.classList.toggle("hidden"));
 if (btnCancelRegister) btnCancelRegister.addEventListener("click", () => registerBox && registerBox.classList.add("hidden"));
 
@@ -154,7 +154,7 @@ if (registerForm) {
   });
 }
 
-/* ON AUTH STATE */
+/* ------------------ AUTH STATE ------------------ */
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     authOverlay && authOverlay.classList.remove("hidden");
@@ -167,12 +167,12 @@ onAuthStateChanged(auth, async (user) => {
   await loadAll();
 });
 
-/* LOGOUT */
+/* ------------------ LOGOUT ------------------ */
 if (btnLogout) btnLogout.addEventListener("click", async () => {
   await signOut(auth);
 });
 
-/* BOOT LOAD */
+/* ------------------ LOAD ALL ------------------ */
 async function loadAll() {
   try {
     await loadCompanies();
@@ -184,6 +184,7 @@ async function loadAll() {
     console.error("loadAll error", err);
   }
 }
+
 
 /* COMPANIES */
 async function loadCompanies() {
@@ -779,13 +780,13 @@ function renderStats() {
   });
 }
 
-/* UTILS */
+/* ------------------ UTILS ------------------ */
 function escapeHtml(s) {
   if (s === null || s === undefined) return '';
   return String(s).replace(/[&<>"'`=\/]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#x2F;', '`': '&#x60;', '=': '&#x3D;' }[c]));
 }
 
-/* BOOTSTRAP CLIENT TABS (lightweight) */
+/* ------------------ BOOTSTRAP CLIENT TABS ------------------ */
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".tablink").forEach(btn => {
     btn.addEventListener("click", () => {
