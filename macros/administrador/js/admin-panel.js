@@ -508,23 +508,25 @@ function renderPayments(arr) {
       try {
         const gen = httpsCallable(functions, "generateInvoice");
         const res = await gen({ companyId, paymentId });
-        if (res.data && res.data.file) {
-          const bin = atob(res.data.file);
-          const len = bin.length;
-          const buf = new Uint8Array(len);
-          for (let i=0;i<len;i++) buf[i]=bin.charCodeAt(i);
-          const blob = new Blob([buf], { type: 'application/pdf' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = res.data.filename || `factura_${companyId}_${paymentId}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-        } else {
-          alert("No se recibió PDF del servidor.");
-        }
+       if (res.data && res.data.file) {
+  const bin = atob(res.data.file);
+  const len = bin.length;
+  const buf = new Uint8Array(len);
+  for (let i=0;i<len;i++) buf[i]=bin.charCodeAt(i);
+  const blob = new Blob([buf], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  // como backend no manda filename, usamos plan B:
+  a.download = `factura_${companyId}_${paymentId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+} else {
+  alert("No se recibió PDF del servidor.");
+}
+
       } catch (err) {
         console.error("invoice err", err);
         alert("Error solicitando factura: "+(err.message||err));
