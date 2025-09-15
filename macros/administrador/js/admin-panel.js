@@ -508,8 +508,8 @@ function renderPayments(arr) {
       try {
         const gen = httpsCallable(functions, "generateInvoice");
         const res = await gen({ companyId, paymentId });
-        if (res.data && res.data.invoiceBase64) {
-          const bin = atob(res.data.invoiceBase64);
+        if (res.data && res.data.file) {
+          const bin = atob(res.data.file);
           const len = bin.length;
           const buf = new Uint8Array(len);
           for (let i=0;i<len;i++) buf[i]=bin.charCodeAt(i);
