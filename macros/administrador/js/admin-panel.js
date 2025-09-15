@@ -24,7 +24,7 @@ import {
   serverTimestamp,
   Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
-import { getFunctions } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
 
 /* CONFIG FIREBASE */
 const firebaseConfig = {
@@ -47,7 +47,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const money = n => `$${Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 })}`;
 
-/* DOM REFS */
+/* DOM REFS (defensivo) */
 const authOverlay = $("#authOverlay");
 const loginForm = $("#loginForm");
 const loginEmail = $("#loginEmail");
@@ -99,7 +99,7 @@ let affiliatesCache = [];
 let paymentsCache = [];
 let revenueChart = null;
 
-/* ------------------ AUTH ------------------ */
+/* ---------------- AUTH UI ---------------- */
 if (btnShowRegister) btnShowRegister.addEventListener("click", () => registerBox && registerBox.classList.toggle("hidden"));
 if (btnCancelRegister) btnCancelRegister.addEventListener("click", () => registerBox && registerBox.classList.add("hidden"));
 
@@ -154,7 +154,7 @@ if (registerForm) {
   });
 }
 
-/* ------------------ AUTH STATE ------------------ */
+/* ---------------- AUTH STATE ---------------- */
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     authOverlay && authOverlay.classList.remove("hidden");
@@ -167,12 +167,12 @@ onAuthStateChanged(auth, async (user) => {
   await loadAll();
 });
 
-/* ------------------ LOGOUT ------------------ */
+/* ---------------- LOGOUT ---------------- */
 if (btnLogout) btnLogout.addEventListener("click", async () => {
   await signOut(auth);
 });
 
-/* ------------------ LOAD ALL ------------------ */
+/* ---------------- BOOT: load sequence ---------------- */
 async function loadAll() {
   try {
     await loadCompanies();
@@ -185,8 +185,9 @@ async function loadAll() {
   }
 }
 
-
-/* COMPANIES */
+/* =========================
+   COMPANIES
+   ========================= */
 async function loadCompanies() {
   try {
     const q = query(collection(db, "companies"), orderBy("createdAt", "desc"));
@@ -267,7 +268,9 @@ function populateCompanySelect() {
   });
 }
 
-/* AFFILIATES */
+/* =========================
+   AFFILIATES
+   ========================= */
 async function loadAffiliates() {
   try {
     const q = query(collection(db, "affiliates"), orderBy("createdAt", "desc"));
@@ -345,7 +348,7 @@ function populateAffiliateSelect() {
   });
 }
 
-/* CREATE / UPDATE AFFILIATE */
+/* CREATE / UPDATE AFFILIATE (modal) */
 if (btnNewAffiliate) btnNewAffiliate.addEventListener("click", () => {
   affIdHidden && (affIdHidden.value = "");
   affName && (affName.value = "");
@@ -388,7 +391,9 @@ async function createOrUpdateAffiliate() {
   }
 }
 
-/* PAYMENTS */
+/* =========================
+   PAYMENTS: carga y render
+   ========================= */
 async function loadRecentPayments() {
   try {
     const payments = [];
@@ -407,7 +412,7 @@ async function loadRecentPayments() {
   } catch (err) {
     console.error("loadRecentPayments error:", err);
     paymentsCache = [];
-    if (tbPayments) tbPayments.innerHTML = `<tr><td colspan="6">Error cargando pagos.</td></tr>`;
+    if (tbPayments) tbPayments.innerHTML = `<tr><td colspan="7">Error cargando pagos.</td></tr>`;
   }
 }
 
@@ -470,11 +475,16 @@ function renderPayments(arr) {
   });
 }
 
-/* INVOKE RECORD PAYMENT: addDoc then transaction to avoid 'reads before writes' error */
+/* =========================
+   INVOKE RECORD PAYMENT
+   - addDoc (fuera tx) para crear pago
+   - luego runTransaction donde SE HACEN TODAS LAS LECTURAS PRIMERO y despues las escrituras
+   ========================= */
 async function invokeRecordPayment(payload) {
   try {
     const { companyId, amount, monthsPaid, promoCode, affiliateId, affiliateFee = 0, createdByNote } = payload;
 
+    // 1) crear documento de pago fuera de la transacción (para no bloquear)
     const paymentRef = await addDoc(collection(db, "companies", companyId, "payments"), {
       amount,
       monthsPaid,
@@ -486,14 +496,30 @@ async function invokeRecordPayment(payload) {
     });
     const paymentId = paymentRef.id;
 
+    // 2) transacción: LEER primero todo lo necesario, luego escribir
     await runTransaction(db, async (tx) => {
       const balancesRef = doc(db, "companies", companyId, "state", "balances");
-      const balancesSnap = await tx.get(balancesRef);
-      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
-      const newCaja = oldCaja + Number(amount || 0);
-      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
-      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+      const compRef = doc(db, "companies", companyId);
+      const affRef = affiliateId ? doc(db, "affiliates", affiliateId) : null;
 
+      // READS (todos antes de las escrituras)
+      const balancesSnap = await tx.get(balancesRef);
+      const compSnap = await tx.get(compRef);
+      const affSnap = affRef ? await tx.get(affRef) : null;
+
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+      const oldAffBal = affSnap ? (affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0) : 0;
+
+      const newCaja = oldCaja + Number(amount || 0);
+
+      // WRITES (después de todas las lecturas)
+      if (balancesSnap.exists()) {
+        tx.update(balancesRef, { cajaEmpresa: newCaja });
+      } else {
+        tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+      }
+
+      // movimiento
       const movRef = doc(collection(db, "companies", companyId, "movements"));
       tx.set(movRef, {
         tipo: "ingreso",
@@ -505,7 +531,7 @@ async function invokeRecordPayment(payload) {
         createdAt: serverTimestamp()
       });
 
-      const compRef = doc(db, "companies", companyId);
+      // actualizar datos de empresa (estado suscripción y cashBalance)
       const nextDueDate = Timestamp.fromDate(new Date(Date.now() + (Number(monthsPaid || 0) * 30 * 24 * 60 * 60 * 1000)));
       tx.set(compRef, {
         subscriptionStatus: "activo",
@@ -513,11 +539,10 @@ async function invokeRecordPayment(payload) {
         cashBalance: newCaja
       }, { merge: true });
 
+      // ajustar afiliado (si corresponde)
       if (affiliateId && Number(affiliateFee || 0) > 0) {
-        const affRef = doc(db, "affiliates", affiliateId);
-        const affSnap = await tx.get(affRef);
-        const oldBal = affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
-        tx.set(affRef, { balanceOwed: oldBal + Number(affiliateFee || 0) }, { merge: true });
+        // affSnap ya leído arriba
+        tx.set(affRef, { balanceOwed: oldAffBal + Number(affiliateFee || 0) }, { merge: true });
       }
     });
 
@@ -528,14 +553,17 @@ async function invokeRecordPayment(payload) {
   }
 }
 
-/* SUBMIT HANDLER (modal form) */
+/* -------------------------
+   MODAL: abrir / cerrar / submit
+   ------------------------- */
 const formRegister = document.getElementById("formRegister");
 if (formRegister) {
   formRegister.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
+    ev.preventDefault(); // importante: evita recarga
     await submitRegister();
   });
 }
+
 if (btnOpen) btnOpen.addEventListener("click", () => {
   if (modal) {
     delete modal.dataset.editingPayment;
@@ -551,6 +579,7 @@ if (btnOpen) btnOpen.addEventListener("click", () => {
   if (inpNote) inpNote.value = "";
   modal && modal.classList.remove("hidden");
 });
+
 if (btnCancel) btnCancel.addEventListener("click", () => {
   modal && modal.classList.add("hidden");
   if (modal) {
@@ -558,7 +587,9 @@ if (btnCancel) btnCancel.addEventListener("click", () => {
     delete modal.dataset.editingCompany;
   }
 });
+
 if (btnReload) btnReload.addEventListener("click", () => loadAll());
+
 if (selAffiliate) selAffiliate.addEventListener("change", () => {
   if (!selAffiliate) return;
   if (affiliateFeeRow) {
@@ -567,6 +598,9 @@ if (selAffiliate) selAffiliate.addEventListener("change", () => {
   }
 });
 
+/* -------------------------
+   SUBMIT REGISTER (crear o editar pago)
+   ------------------------- */
 async function submitRegister() {
   const companyId = selCompany?.value;
   const amount = Number(inpAmount?.value || 0);
@@ -609,19 +643,46 @@ async function submitRegister() {
   }
 }
 
-/* EDIT PAYMENT WITH ADJUST */
+/* =========================
+   EDIT PAYMENT WITH ADJUST
+   - Se aseguran lecturas antes de escrituras
+   ========================= */
 async function editPaymentWithAdjust(companyId, paymentId, newData) {
   try {
     await runTransaction(db, async (tx) => {
       const payRef = doc(db, "companies", companyId, "payments", paymentId);
-      const paySnap = await tx.get(payRef);
-      if (!paySnap.exists()) throw new Error("Pago no encontrado");
-      const old = paySnap.data();
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const compRef = doc(db, "companies", companyId);
 
+      // Old and new affiliate refs (si existen)
+      const oldPaySnap = await tx.get(payRef);
+      if (!oldPaySnap.exists()) throw new Error("Pago no encontrado");
+      const old = oldPaySnap.data();
+
+      const oldAff = old.affiliateId || null;
+      const newAff = newData.affiliateId || null;
+
+      const affRefOld = oldAff ? doc(db, "affiliates", oldAff) : null;
+      const affRefNew = newAff ? doc(db, "affiliates", newAff) : null;
+
+      // READS: balances + affiliate snaps + company
+      const balancesSnap = await tx.get(balancesRef);
+      const compSnap = await tx.get(compRef);
+      const affSnapOld = affRefOld ? await tx.get(affRefOld) : null;
+      const affSnapNew = affRefNew ? await tx.get(affRefNew) : null;
+
+      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
       const oldAmount = Number(old.amount ?? old.monto ?? 0);
       const newAmount = Number(newData.amount ?? newData.monto ?? 0);
       const diff = newAmount - oldAmount;
 
+      const oldAffFee = Number(old.affiliateFee || 0);
+      const newAffFee = Number(newData.affiliateFee || 0);
+
+      // Compute new balances
+      const newCaja = oldCaja + diff;
+
+      // WRITES: update payment, balances, movement, affiliates, company
       tx.update(payRef, {
         amount: newAmount,
         monthsPaid: newData.monthsPaid || old.monthsPaid || old.months || 1,
@@ -632,10 +693,6 @@ async function editPaymentWithAdjust(companyId, paymentId, newData) {
         updatedAt: serverTimestamp()
       });
 
-      const balancesRef = doc(db, "companies", companyId, "state", "balances");
-      const balancesSnap = await tx.get(balancesRef);
-      const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
-      const newCaja = oldCaja + diff;
       if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
       else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
 
@@ -650,34 +707,27 @@ async function editPaymentWithAdjust(companyId, paymentId, newData) {
         createdAt: serverTimestamp()
       });
 
-      const oldAff = old.affiliateId || null;
-      const oldAffFee = Number(old.affiliateFee || 0);
-      const newAff = newData.affiliateId || null;
-      const newAffFee = Number(newData.affiliateFee || 0);
-
+      // Affiliate adjustments
       if (oldAff && oldAff === newAff) {
-        const affRef = doc(db, "affiliates", oldAff);
-        const affSnap = await tx.get(affRef);
-        const oldBal = affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
+        // same affiliate -> adjust delta
         const delta = newAffFee - oldAffFee;
-        if (delta !== 0) tx.update(affRef, { balanceOwed: oldBal + delta });
+        if (delta !== 0 && affSnapOld) {
+          const oldBal = affSnapOld.exists() ? Number(affSnapOld.data().balanceOwed || 0) : 0;
+          tx.update(affRefOld, { balanceOwed: oldBal + delta });
+        }
       } else {
-        if (oldAff && oldAffFee) {
-          const refOld = doc(db, "affiliates", oldAff);
-          const sOld = await tx.get(refOld);
-          const oldBal = sOld.exists() ? Number(sOld.data().balanceOwed || 0) : 0;
-          tx.update(refOld, { balanceOwed: Math.max(0, oldBal - oldAffFee) });
+        if (oldAff && oldAffFee && affSnapOld) {
+          const oldBal = affSnapOld.exists() ? Number(affSnapOld.data().balanceOwed || 0) : 0;
+          tx.update(affRefOld, { balanceOwed: Math.max(0, oldBal - oldAffFee) });
         }
         if (newAff && newAffFee) {
-          const refNew = doc(db, "affiliates", newAff);
-          const sNew = await tx.get(refNew);
-          const newBal = sNew.exists() ? Number(sNew.data().balanceOwed || 0) : 0;
-          tx.set(refNew, { balanceOwed: newBal + newAffFee }, { merge: true });
+          const newBal = affSnapNew && affSnapNew.exists() ? Number(affSnapNew.data().balanceOwed || 0) : 0;
+          tx.set(affRefNew, { balanceOwed: newBal + newAffFee }, { merge: true });
         }
       }
 
-      const compRef = doc(db, "companies", companyId);
-      const currentSubEnds = (await tx.get(compRef)).data()?.subscriptionEndsAt;
+      // Company subscription adjustment
+      const currentSubEnds = compSnap.exists() ? compSnap.data()?.subscriptionEndsAt : null;
       let nextDueDate = currentSubEnds && currentSubEnds.seconds ? new Date(currentSubEnds.seconds * 1000) : new Date();
       nextDueDate = new Date(nextDueDate.getTime() + (Number(newData.monthsPaid || 0) * 30 * 24 * 60 * 60 * 1000));
       tx.update(compRef, { subscriptionEndsAt: Timestamp.fromDate(nextDueDate), cashBalance: newCaja }, { merge: true });
@@ -688,23 +738,31 @@ async function editPaymentWithAdjust(companyId, paymentId, newData) {
   }
 }
 
-/* DELETE PAYMENT WITH ADJUST */
+/* =========================
+   DELETE PAYMENT WITH ADJUST
+   - Lecturas antes de escrituras
+   ========================= */
 async function deletePaymentWithAdjust(companyId, paymentId) {
   try {
     await runTransaction(db, async (tx) => {
       const payRef = doc(db, "companies", companyId, "payments", paymentId);
+      const balancesRef = doc(db, "companies", companyId, "state", "balances");
+      const compRef = doc(db, "companies", companyId);
+
+      // READS
       const paySnap = await tx.get(payRef);
       if (!paySnap.exists()) throw new Error("Pago no encontrado");
       const pay = paySnap.data();
 
-      const amt = Number(pay.amount ?? pay.monto ?? 0);
-      const affId = pay.affiliateId || null;
-      const affFee = Number(pay.affiliateFee || 0);
-
-      const balancesRef = doc(db, "companies", companyId, "state", "balances");
       const balancesSnap = await tx.get(balancesRef);
+      const affRef = pay.affiliateId ? doc(db, "affiliates", pay.affiliateId) : null;
+      const affSnap = affRef ? await tx.get(affRef) : null;
+
       const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
+      const amt = Number(pay.amount ?? pay.monto ?? 0);
       const newCaja = oldCaja - amt;
+
+      // WRITES
       if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
       else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
 
@@ -719,16 +777,14 @@ async function deletePaymentWithAdjust(companyId, paymentId) {
         createdAt: serverTimestamp()
       });
 
-      if (affId && affFee) {
-        const affRef = doc(db, "affiliates", affId);
-        const affSnap = await tx.get(affRef);
-        const oldBal = affSnap.exists() ? Number(affSnap.data().balanceOwed || 0) : 0;
+      if (affRef && affSnap && affSnap.exists()) {
+        const oldBal = Number(affSnap.data().balanceOwed || 0);
+        const affFee = Number(pay.affiliateFee || 0);
         tx.update(affRef, { balanceOwed: Math.max(0, oldBal - affFee) });
       }
 
       tx.delete(payRef);
 
-      const compRef = doc(db, "companies", companyId);
       const compSnap = await tx.get(compRef);
       if (compSnap.exists()) {
         tx.update(compRef, { cashBalance: newCaja });
@@ -740,7 +796,9 @@ async function deletePaymentWithAdjust(companyId, paymentId) {
   }
 }
 
-/* KPIS */
+/* =========================
+   KPIs
+   ========================= */
 function computeKPIs() {
   if (kCompanies) kCompanies.textContent = companiesCache.length;
   if (kRevenue) kRevenue.textContent = money(paymentsCache.reduce((s, p) => s + Number(p.amount ?? p.monto ?? 0), 0));
@@ -748,7 +806,9 @@ function computeKPIs() {
   if (kCommissions) kCommissions.textContent = money(totalComm);
 }
 
-/* STATS (Chart.js) */
+/* =========================
+   STATS (Chart.js)
+   ========================= */
 function renderStats() {
   const canvas = document.getElementById("chartRevenue");
   if (!canvas) return;
@@ -780,13 +840,15 @@ function renderStats() {
   });
 }
 
-/* ------------------ UTILS ------------------ */
+/* =========================
+   UTILS
+   ========================= */
 function escapeHtml(s) {
   if (s === null || s === undefined) return '';
   return String(s).replace(/[&<>"'`=\/]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#x2F;', '`': '&#x60;', '=': '&#x3D;' }[c]));
 }
 
-/* ------------------ BOOTSTRAP CLIENT TABS ------------------ */
+/* BOOTSTRAP CLIENT TABS */
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".tablink").forEach(btn => {
     btn.addEventListener("click", () => {
