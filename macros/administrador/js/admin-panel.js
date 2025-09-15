@@ -844,7 +844,7 @@ async function deletePaymentWithAdjust(companyId, paymentId) {
       const balancesRef = doc(db, "companies", companyId, "state", "balances");
       const compRef = doc(db, "companies", companyId);
 
-      // READS
+      // --- READS (todas primero)
       const paySnap = await tx.get(payRef);
       if (!paySnap.exists()) throw new Error("Pago no encontrado");
       const pay = paySnap.data();
@@ -852,27 +852,32 @@ async function deletePaymentWithAdjust(companyId, paymentId) {
       const balancesSnap = await tx.get(balancesRef);
       const affRef = pay.affiliateId ? doc(db, "affiliates", pay.affiliateId) : null;
       const affSnap = affRef ? await tx.get(affRef) : null;
+      const compSnap = await tx.get(compRef);
 
+      // --- cálculos
       const oldCaja = balancesSnap.exists() ? Number(balancesSnap.data().cajaEmpresa || 0) : 0;
       const amt = Number(pay.amount ?? pay.monto ?? 0);
       const newCaja = oldCaja - amt;
 
-      // WRITES
-      if (balancesSnap.exists()) tx.update(balancesRef, { cajaEmpresa: newCaja });
-      else tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+      // --- WRITES (todas después)
+      if (balancesSnap.exists()) {
+        tx.update(balancesRef, { cajaEmpresa: newCaja });
+      } else {
+        tx.set(balancesRef, { cajaEmpresa: newCaja, deudasTotales: 0, createdAt: serverTimestamp() });
+      }
 
       const movRef = doc(collection(db, "companies", companyId, "movements"));
       tx.set(movRef, {
         tipo: "egreso",
         cuenta: "cajaEmpresa",
-        fecha: new Date().toISOString().slice(0,10),
+        fecha: new Date().toISOString().slice(0, 10),
         monto: amt,
         desc: `Eliminación pago ${paymentId}`,
         paymentId,
         createdAt: serverTimestamp()
       });
 
-      if (affRef && affSnap && affSnap.exists()) {
+      if (affRef && affSnap?.exists()) {
         const oldBal = Number(affSnap.data().balanceOwed || 0);
         const affFee = Number(pay.affiliateFee || 0);
         tx.update(affRef, { balanceOwed: Math.max(0, oldBal - affFee) });
@@ -880,7 +885,6 @@ async function deletePaymentWithAdjust(companyId, paymentId) {
 
       tx.delete(payRef);
 
-      const compSnap = await tx.get(compRef);
       if (compSnap.exists()) {
         tx.update(compRef, { cashBalance: newCaja });
       }
@@ -890,6 +894,7 @@ async function deletePaymentWithAdjust(companyId, paymentId) {
     throw err;
   }
 }
+
 
 /* =========================
    KPIs
