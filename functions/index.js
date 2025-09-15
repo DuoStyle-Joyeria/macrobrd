@@ -1,9 +1,13 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onRequest } = require("firebase-functions/v2/https");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const OpenAI = require("openai");
+const cors = require("cors")({ origin: true });
+const PDFDocument = require("pdfkit");
+const { Writable } = require("stream");  // 👈 agregado arriba, ya no se repite después
 
 // ✅ Inicializar Firebase Admin una sola vez
 initializeApp();
@@ -85,9 +89,9 @@ exports.luciChat = onCall(
 
         const companyData = companySnap.data();
         return {
-          answer: `🔍 Debug info:\nEmpresa: ${companyData.name || "Sin nombre"}\nOwners: ${JSON.stringify(
-            companyData.owners || []
-          )}`,
+          answer: `🔍 Debug info:\nEmpresa: ${
+            companyData.name || "Sin nombre"
+          }\nOwners: ${JSON.stringify(companyData.owners || [])}`,
         };
       }
 
@@ -325,8 +329,87 @@ exports.getCompanyCash = onCall(async (request) => {
   }
 });
 
+
+
+
 /* ============================================================
-   5) SEGURIDAD: CAMBIO DE CONTRASEÑA
+   5) GENERAR FACTURA PDF
+============================================================ */
+
+// ❌ Se eliminó la línea duplicada de "const PDFDocument = require("pdfkit");"
+// ❌ Se eliminó la línea duplicada de "const { Writable } = require("stream");"
+
+exports.generateInvoice = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes estar autenticado.");
+    }
+
+    const { companyId, paymentId } = request.data;
+    if (!companyId || !paymentId) {
+      throw new HttpsError("invalid-argument", "Faltan datos.");
+    }
+
+    // ✅ Obtener datos de la empresa y del pago
+    const companyRef = db.collection("companies").doc(companyId);
+    const paymentRef = companyRef.collection("payments").doc(paymentId);
+
+    const [companySnap, paymentSnap] = await Promise.all([
+      companyRef.get(),
+      paymentRef.get(),
+    ]);
+
+    if (!companySnap.exists || !paymentSnap.exists) {
+      throw new HttpsError("not-found", "Datos no encontrados.");
+    }
+
+    const companyData = companySnap.data();
+    const paymentData = paymentSnap.data();
+
+    // ✅ Generar PDF en memoria
+    const doc = new PDFDocument();
+    let chunks = [];
+    const writable = new Writable({
+      write(chunk, encoding, callback) {
+        chunks.push(chunk);
+        callback();
+      },
+    });
+
+    doc.pipe(writable);
+
+    doc.fontSize(20).text("Factura", { align: "center" });
+    doc.moveDown();
+
+    doc.fontSize(12).text(`Empresa: ${companyData.name || "N/A"}`);
+    doc.text(`ID Empresa: ${companyId}`);
+    doc.moveDown();
+
+    doc.text(`Monto: $${paymentData.amount}`);
+    doc.text(`Meses: ${paymentData.months}`);
+    doc.text(`Fecha: ${paymentData.createdAt?.toDate?.().toLocaleDateString()}`);
+    doc.text(`Nota: ${paymentData.note || "-"}`);
+
+    doc.end();
+
+    // ✅ Convertir PDF en Base64
+    await new Promise((resolve) => writable.on("finish", resolve));
+    const pdfBuffer = Buffer.concat(chunks);
+
+    return {
+      success: true,
+      file: pdfBuffer.toString("base64"),
+    };
+  } catch (error) {
+    console.error("Error en generateInvoice:", error);
+    throw new HttpsError("internal", error.message || "Error generando factura");
+  }
+});
+
+
+
+/* ============================================================
+   6) SEGURIDAD: CAMBIO DE CONTRASEÑA
 ============================================================ */
 exports.changePassword = onCall(async (request) => {
   try {
@@ -370,8 +453,71 @@ exports.adminResetPassword = onCall(async (request) => {
   }
 });
 
+// ✅ Nuevo: cambio de contraseña directo desde admin panel
+exports.changeUserPassword = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes estar autenticado.");
+    }
+
+    const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+    if (!callerDoc.exists || callerDoc.data().role !== "admin") {
+      throw new HttpsError("permission-denied", "No autorizado.");
+    }
+
+    const { uid, password } = request.data;
+    if (!uid || !password) {
+      throw new HttpsError("invalid-argument", "Faltan datos.");
+    }
+
+    await auth.updateUser(uid, { password });
+    return { success: true };
+  } catch (error) {
+    console.error("Error en changeUserPassword:", error);
+    throw new HttpsError("internal", error.message || "Error interno");
+  }
+});
+
 /* ============================================================
-   6) CLEAN OLD MEMORY
+   7) FACTURAS EN PDF (con CORS habilitado)
+============================================================ */
+exports.generateInvoice = onRequest((req, res) => {
+  cors(req, res, async () => {
+    try {
+      const { companyName, amount, date } = req.body;
+
+      if (!companyName || !amount) {
+        return res.status(400).json({ error: "Faltan datos para la factura." });
+      }
+
+      const doc = new PDFDocument();
+      let buffers = [];
+
+      doc.on("data", buffers.push.bind(buffers));
+      doc.on("end", () => {
+        let pdfData = Buffer.concat(buffers);
+        res.writeHead(200, {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": "attachment; filename=factura.pdf",
+        });
+        res.end(pdfData);
+      });
+
+      doc.fontSize(20).text("Factura", { align: "center" });
+      doc.moveDown();
+      doc.fontSize(14).text(`Empresa: ${companyName}`);
+      doc.text(`Monto: $${amount}`);
+      doc.text(`Fecha: ${date || new Date().toLocaleDateString()}`);
+      doc.end();
+    } catch (error) {
+      console.error("Error en generateInvoice:", error);
+      res.status(500).json({ error: "Error generando factura" });
+    }
+  });
+});
+
+/* ============================================================
+   8) CLEAN OLD MEMORY
 ============================================================ */
 exports.cleanOldMemory = onSchedule("every 24 hours", async () => {
   const cutoff = Date.now() - 15 * 24 * 60 * 60 * 1000;
