@@ -1,4 +1,4 @@
-<!doctype html>
+<!doctype html> 
 <html lang="es">
 <head>
   <meta charset="utf-8" />
@@ -181,6 +181,21 @@
         <div class="flex justify-end gap-2">
           <button type="button" id="btnCancelAffiliate" class="px-3 py-2 border rounded">Cancelar</button>
           <button type="submit" id="btnCreateAffiliate" class="px-3 py-2 bg-emerald-600 text-white rounded">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL resetear contraseña -->
+  <div id="modalResetPass" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div class="bg-white rounded p-6 w-full max-w-md shadow">
+      <h3 class="font-semibold text-lg mb-3">Resetear Contraseña</h3>
+      <form id="formResetPass" class="space-y-3">
+        <input id="resetEmail" type="email" placeholder="Email del usuario" class="w-full border rounded p-2" required>
+        <input id="resetNewPass" type="password" placeholder="Nueva contraseña" class="w-full border rounded p-2" required>
+        <div class="flex justify-end gap-2">
+          <button type="button" id="btnCancelReset" class="px-3 py-2 border rounded">Cancelar</button>
+          <button type="submit" id="btnDoReset" class="px-3 py-2 bg-emerald-600 text-white rounded">Cambiar</button>
         </div>
       </form>
     </div>
