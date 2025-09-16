@@ -288,11 +288,39 @@ exports.registerPayment = onCall(async (request) => {
 });
 
 
+/* ============================================================
+   5) LISTAR PAGOS (con CORS habilitado)
+============================================================ */
+exports.listPayments = onRequest((req, res) => {
+  cors(req, res, async () => {
+    try {
+      const { companyId } = req.body;
+
+      if (!companyId) {
+        return res.status(400).json({ error: "Falta companyId" });
+      }
+
+      const snap = await db
+        .collection("companies")
+        .doc(companyId)
+        .collection("payments")
+        .orderBy("createdAt", "desc")
+        .limit(50)
+        .get();
+
+      const payments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      res.json({ payments });
+    } catch (error) {
+      console.error("Error en listPayments:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+});
 
 
 
 /* ============================================================
-   5) GENERAR FACTURA PDF
+   6) GENERAR FACTURA PDF
 ============================================================ */
 
 // ❌ Se eliminó la línea duplicada de "const PDFDocument = require("pdfkit");"
@@ -368,7 +396,7 @@ exports.generateInvoice = onCall(async (request) => {
 
 
 /* ============================================================
-   6) SEGURIDAD: CAMBIO DE CONTRASEÑA
+   7) SEGURIDAD: CAMBIO DE CONTRASEÑA
 ============================================================ */
 exports.changePassword = onCall(async (request) => {
   try {
@@ -438,7 +466,7 @@ exports.changeUserPassword = onCall(async (request) => {
 });
 
 /* ============================================================
-   7) FACTURAS EN PDF (con CORS habilitado)
+   8) FACTURAS EN PDF (con CORS habilitado)
 ============================================================ */
 exports.generateInvoiceHttp = onRequest((req, res) => {
   cors(req, res, async () => {
@@ -476,7 +504,7 @@ exports.generateInvoiceHttp = onRequest((req, res) => {
 });
 
 /* ============================================================
-   8) CLEAN OLD MEMORY
+   9) CLEAN OLD MEMORY
 ============================================================ */
 exports.cleanOldMemory = onSchedule("every 24 hours", async () => {
   const cutoff = Date.now() - 15 * 24 * 60 * 60 * 1000;
@@ -505,7 +533,7 @@ exports.cleanOldMemory = onSchedule("every 24 hours", async () => {
 
 
 /* ============================================================
-   9) AÑADIR AFILIADO
+   10) AÑADIR AFILIADO
 ============================================================ */
 
 exports.payAffiliate = onCall(async (request) => {
