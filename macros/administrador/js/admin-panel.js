@@ -483,22 +483,19 @@ async function createOrUpdateAffiliate() {
  * este panel ahora muestra exclusivamente lo creado desde el admin (admin_payments).
  */
 
-async function loadRecentPayments() {
+// 👇 Nueva versión de loadRecentPayments
+async function loadRecentPayments(companyId) {
   try {
-    const payments = [];
-    // Traer pagos creados desde este panel (admin_payments)
-    const q = query(collection(db, "admin_payments"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    snap.docs.forEach(d => payments.push({ id: d.id, ...d.data() }));
-
-    paymentsCache = payments;
-    renderPayments(payments.slice(0,200));
+    // Llamamos a la Cloud Function
+    const listFn = httpsCallable(functions, "listPayments");
+    const res = await listFn({ companyId });
+    return res.data; // Aquí viene el array de pagos
   } catch (err) {
     console.error("loadRecentPayments error:", err);
-    paymentsCache = [];
-    if (tbPayments) tbPayments.innerHTML = `<tr><td colspan="7">Error cargando pagos.</td></tr>`;
+    throw err;
   }
 }
+
 
 function renderPayments(arr) {
   if (!tbPayments) return;
