@@ -1,6 +1,7 @@
 /* style/style.css
    Landing premium - Luci
-   Versión PRO corregida para móviles con 2 columnas ordenadas.
+   Reglas: minimal bolding, responsive mockups, gallery lightbox,
+   popup de oferta (9s), mejoras visuales y grids refinados.
    ----------------------------------------------------------- */
 
 /* ========================
@@ -106,17 +107,25 @@ body.luci {
 .mini-msg.luci { background: linear-gradient(180deg, rgba(14,78,94,0.06), rgba(37,99,235,0.06)); color:#071133; align-self:flex-start; }
 
 /* ========================
-   FEATURES / GALLERY
+   FEATURES / GALLERY / PRICING / GANAR / FAQ
    ======================== */
 .features-cards,
-.gallery-grid {
+.gallery-grid,
+.pricing-grid,
+.ganar-grid,
+.faq-grid {
   display:grid;
   gap: 1.5rem;
+  align-items: stretch;
   margin-top:1.2rem;
 }
 
+/* tarjetas refinadas */
 .card.feature,
-.gallery-item {
+.price-card,
+.ganar-card,
+.gallery-item,
+.faq-item {
   padding:1.25rem;
   border-radius: 14px;
   background:var(--surface);
@@ -130,156 +139,238 @@ body.luci {
 }
 
 .card.feature:hover,
-.gallery-item:hover {
+.price-card:hover,
+.gallery-item:hover,
+.ganar-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 20px 60px rgba(2,6,23,0.06);
 }
+
+.card .icon { width:42px; height:42px; color:var(--accent); }
 
 .gallery-item img { width:100%; height:180px; object-fit:cover; border-radius:10px; transition: transform .35s ease; }
 .gallery-item:hover img { transform: scale(1.04); }
 .gallery-item figcaption { font-weight:600; font-size:.95rem; color:var(--muted); }
 
-/* grids base */
-.features-cards,
-.gallery-grid {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+/* columnas equilibradas desktop */
+@media (min-width: 1025px) {
+  .features-cards,
+  .gallery-grid,
+  .pricing-grid,
+  .ganar-grid,
+  .faq-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
 }
 
+/* tablet */
+@media (max-width: 768px) {
+  .features-cards,
+  .gallery-grid,
+  .pricing-grid,
+  .ganar-grid,
+  .faq-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* móvil */
+@media (max-width: 480px) {
+  .features-cards,
+  .gallery-grid,
+  .pricing-grid,
+  .ganar-grid,
+  .faq-grid {
+    grid-template-columns: 1fr;
+    gap: 1.2rem;
+  }
+}
+
+/* ========================
+   VIDEO, WHATSAPP, POPUP, FOOTER
+   ======================== */
+/* (sección idéntica a la que me pasaste, ya está bien estructurada) */
+
+
+/* ========================
+   VIDEO (lazy / shorts)
+   ======================== */
+.video-block { display:grid; place-items:center; gap:.6rem; margin-top: .6rem; }
+.video-poster { cursor:pointer; width:100%; max-width:920px; border-radius:14px; overflow:hidden; box-shadow: var(--card-shadow); position:relative; border:1px solid rgba(15,23,42,0.04); background:#fff; }
+.video-poster img { width:100%; height:auto; display:block; object-fit:cover; }
+.play-button { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background: linear-gradient(180deg,var(--accent-2), #059669); color:#fff; padding:12px 18px; border-radius:999px; font-size:1.2rem; box-shadow: 0 18px 40px rgba(16,185,129,0.12); }
+
+/* video wrapper - responsive for regular and shorts */
+.video-wrapper { position: relative; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.12); width:100%; max-width:920px; }
+.video-wrapper iframe, .video-wrapper video { width:100%; height:100%; display:block; border:0; }
+
+/* Ajustes para shorts (vertical) */
+.video-wrapper.shorts { width:100%; max-width:320px; aspect-ratio: 9 / 16; }
+.video-wrapper.shorts iframe { width:100%; height:100%; display:block; border-radius:12px; }
+
+/* ========================
+   GALLERY
+   ======================== */
+.gallery-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 1rem; margin-top: 1.2rem; }
+.gallery-item { background:var(--surface); border-radius: 12px; overflow: hidden; cursor: pointer; border:1px solid rgba(15,23,42,0.04); box-shadow: var(--card-shadow); display:flex; flex-direction:column; transition: transform var(--transition-fast), box-shadow var(--transition-fast); }
+.gallery-item img { width:100%; height:180px; object-fit:cover; display:block; transition: transform .35s ease; }
+.gallery-item:hover { transform: translateY(-6px); box-shadow: 0 30px 80px rgba(2,6,23,0.08); }
+.gallery-item:hover img { transform: scale(1.04); }
+.gallery-item figcaption { padding:.65rem; font-weight:600; color:var(--muted); font-size:.95rem; }
 
 /* ========================
    PRICING
    ======================== */
-.pricing-grid {
-  display:grid;
-  gap:1.5rem;
-  margin-top:1.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-.pricing-card {
-  background:var(--surface);
-  border-radius:14px;
-  border:1px solid rgba(15,23,42,0.06);
-  box-shadow: var(--card-shadow);
-  padding:1.5rem;
-  display:flex;
-  flex-direction:column;
-  gap:1rem;
-  transition:transform var(--transition-fast), box-shadow var(--transition-fast);
-}
-.pricing-card:hover { transform:translateY(-4px); box-shadow:0 20px 60px rgba(2,6,23,0.08); }
-.price { font-size:1.8rem; font-weight:700; color:var(--accent); }
-.price small { font-size:1rem; font-weight:400; color:var(--muted); }
-.pricing-features { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:.45rem; }
-.pricing-features li { font-size:.95rem; color:#071133; }
+.pricing-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1rem; margin-top:1.5rem; align-items:start; }
+.price-card { padding:1.5rem; border-radius:14px; background:linear-gradient(180deg,#fff,#fbfdff); border:1px solid rgba(15,23,42,0.04); box-shadow:var(--card-shadow); position:relative; transition: transform var(--transition-fast), box-shadow var(--transition-fast); }
+.price-card.featured { transform: translateY(-6px); border-color: rgba(16,185,129,0.12); box-shadow: 0 30px 90px rgba(16,185,129,0.06); }
+.ribbon { position:absolute; top:12px; right:12px; background:var(--accent-2); color:#053f2b; padding:.35rem .6rem; border-radius:10px; font-weight:700; font-size:.85rem; box-shadow: 0 6px 18px rgba(16,185,129,0.08); }
+.price-title { font-weight:600; font-size:1.03rem; color:#071133; margin-bottom:.2rem; }
+.price-amount { font-weight:600; font-size:1.6rem; margin:.4rem 0; color:#071133; }
+.price-meta { color:var(--muted); margin-bottom:.8rem; }
+.price-features { list-style:none; padding:0; margin:.6rem 0 1rem 0; display:flex; flex-direction:column; gap:.35rem; color:var(--muted); }
+.price-actions { margin-top:.6rem; }
 
 /* ========================
-   COMO GANAR
+   PARTNERS / GANAR
    ======================== */
-.win-grid {
-  display:grid;
-  gap:1.2rem;
-  margin-top:1.2rem;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+.partner-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1rem; margin-top:1rem; }
+.partner-grid .card { padding:1.25rem; border-radius:12px; background:var(--surface); border:1px solid rgba(15,23,42,0.04); box-shadow: var(--card-shadow); }
+.partner-grid ol { padding-left:1.15rem; }
+
+/* Sección ganar: tarjetas responsive 2 arriba y 1 abajo en móvil */
+.ganar-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1.2rem; margin-top:1.5rem; }
+.ganar-card { background:#fff; border-radius:12px; padding:1rem 1.2rem; box-shadow:0 4px 12px rgba(0,0,0,0.05); transition: transform .25s ease, box-shadow .25s ease; }
+.ganar-card h3 { font-size:1.05rem; margin-bottom:.6rem; font-weight:600; color:#071133; }
+.ganar-card p, .ganar-card li { font-size:.95rem; color:#0f172a; line-height:1.4; }
+@media (max-width:768px){
+  .ganar-grid { grid-template-columns: 1fr 1fr; }
+  .ganar-grid .ganar-card:last-child { grid-column: 1 / span 2; }
+  .ganar-card { padding:.9rem; }
 }
-.win-card {
-  background:var(--surface);
-  border-radius:14px;
-  border:1px solid rgba(15,23,42,0.06);
-  box-shadow: var(--card-shadow);
-  padding:1.25rem;
-  display:flex;
-  flex-direction:column;
-  gap:.75rem;
-  transition:transform var(--transition-fast), box-shadow var(--transition-fast);
-}
-.win-card:hover { transform:translateY(-4px); box-shadow:0 20px 60px rgba(2,6,23,0.08); }
-.win-card h3 { font-weight:600; font-size:1.05rem; margin:0; }
-.win-card p { font-size:.95rem; color:var(--muted); margin:0; }
 
 /* ========================
    FAQ
    ======================== */
-.faq-grid {
-  display:grid;
-  gap:1.2rem;
-  margin-top:1.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+.faq-grid { display:grid; gap:1rem; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); margin-top:1rem; }
+.faq-item summary { cursor:pointer; padding:1rem; font-weight:600; display:flex; justify-content:space-between; align-items:center; background:transparent; border-radius:10px; }
+.faq-item[open] { box-shadow: var(--card-shadow); border-radius:12px; background:var(--surface); }
+.faq-body { padding: 0 1rem 1rem 1rem; color:var(--muted); }
+
+/* ========================
+   WHATSAPP FLOATING CTA
+   ======================== */
+.wa-floating {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  /* subimos para que no tape el footer que ahora tiene padding extra */
+  bottom: calc(18px + 62px);
+  background: linear-gradient(180deg,var(--accent), #1e40af);
+  color: #fff;
+  border-radius: 999px;
+  padding: 12px 18px;
+  display:flex; align-items:center; gap:.75rem;
+  box-shadow: 0 18px 60px rgba(37,99,235,0.16);
+  z-index:1300;
+  text-decoration:none;
+  transition: transform .22s ease, box-shadow .22s ease;
 }
-.faq-card {
-  background:var(--surface);
+.wa-floating:hover { transform: translateY(-6px); box-shadow: 0 30px 80px rgba(37,99,235,0.22); }
+.wa-floating svg { width:20px; height:20px; }
+
+/* ========================
+   OFFER POPUP (9s)
+   ======================== */
+.offer-popup {
+  position: fixed;
+  right: 18px;
+  bottom: 92px;
+  width: 320px;
+  max-width: 92%;
   border-radius:14px;
+  background: linear-gradient(180deg,#fff,#f8feff);
+  box-shadow: 0 30px 90px rgba(2,6,23,0.16);
   border:1px solid rgba(15,23,42,0.06);
-  box-shadow: var(--card-shadow);
-  padding:1.25rem;
-  display:flex;
-  flex-direction:column;
-  gap:.6rem;
+  padding:16px;
+  z-index:3500;
+  transform: translateY(12px) scale(.98);
+  opacity:0;
+  transition: opacity .28s, transform .28s;
 }
-.faq-card h4 { margin:0; font-size:1.05rem; font-weight:600; color:#071133; }
-.faq-card p { margin:0; font-size:.95rem; color:var(--muted); }
+.offer-popup.show { opacity:1; transform: translateY(0) scale(1); }
+.offer-popup .offer-close { position:absolute; right:10px; top:10px; background:transparent; border:0; font-size:18px; cursor:pointer; color:var(--muted); }
+.offer-popup h3 { font-size:1.05rem; margin-bottom:.35rem; font-weight:600; color:#071133; }
+.offer-popup p { font-size:.92rem; color:var(--muted); margin-bottom:.8rem; }
 
 /* ========================
    FOOTER
    ======================== */
-.footer {
-  background:#071133;
-  color:#fff;
-  padding:2rem 0;
-  margin-top:2rem;
-}
-.footer .container { display:grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap:1.5rem; }
-.footer h4 { font-size:1.05rem; font-weight:600; margin-bottom:.8rem; }
-.footer p, .footer a { font-size:.9rem; color:rgba(255,255,255,0.8); text-decoration:none; }
-.footer a:hover { color:#fff; }
-.footer-bottom { text-align:center; font-size:.85rem; margin-top:1.5rem; color:rgba(255,255,255,0.6); }
+.footer { margin-top:3rem; padding:2rem 1rem 4.5rem 1rem; text-align:center; color:var(--muted); font-size:.9rem; background:#fff; border-top:1px solid rgba(15,23,42,0.06); }
+.footer-links { display:flex; flex-wrap:wrap; justify-content:center; gap:.8rem; margin-top:.6rem; }
+.footer-links a { color:var(--muted-2); text-decoration:none; font-weight:500; }
 
 /* ========================
-   MODAL FIX (para galería)
+   RESPONSIVE (mejorado)
    ======================== */
-.modal {
-  position:fixed;
-  top:0; left:0; right:0; bottom:0;
-  background:rgba(0,0,0,0.75);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  z-index:5000; /* Aseguramos que quede encima de todo */
-  visibility:hidden;
-  opacity:0;
-  transition:opacity .3s ease, visibility .3s ease;
-}
-.modal.open { visibility:visible; opacity:1; }
-.modal img { max-width:90%; max-height:90%; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,0.4); }
-
-/* ========================
-   MEDIA QUERIES
-   ======================== */
-@media (max-width: 980px){
-  .hero-grid { grid-template-columns:1fr; }
-  .mockup-card { width:100%; }
-  .mini-chat { width:100%; }
+@media (max-width: 1024px) {
+  .hero-grid { grid-template-columns: 1fr; text-align:center; gap:2rem; }
+  .hero-actions, .hero-features, .trust-row { justify-content:center; }
+  .mockup-card { width: 100%; max-width:420px; margin: 0 auto; }
+  .mini-chat { margin: 1rem auto 0; }
+  .video-wrapper.shorts { max-width: 300px; }
+  .offer-popup { left: 12px; right:12px; bottom: 18px; width:auto; max-width: 520px; }
 }
 
-@media (max-width: 640px){
-  .nav-links { display:none; }
+@media (max-width: 768px) {
+  /* hero */
+  .hero-section { padding: 2.5rem 1rem 1.5rem; }
+  .hero-title { font-size: 1.7rem; line-height:1.2; }
+  .hero-sub { font-size: 1rem; margin: 0 auto 1rem; max-width: 36ch; }
+  .hero-actions { flex-direction: column; gap:.8rem; margin-top:1.2rem; }
+  .hero-actions .btn { width:100%; max-width:340px; margin: 0 auto; }
+  .hero-features { grid-template-columns: 1fr 1fr; gap:.6rem; }
+  .trust-row { justify-content:center; gap:.6rem; }
+
+  /* sections */
+  .features-cards, .gallery-grid, .pricing-grid, .ganar-grid, .faq-grid { 
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 1rem;
+  }
+
+  .mockup-card { max-width: 300px; }
+  .mini-chat { width: 95%; max-width: 300px; }
+
+  /* nav */
   .nav-toggle { display:flex; }
-  .hero-title { font-size:1.8rem; }
-  .hero-sub { font-size:1rem; }
-  .pricing-grid,
-  .features-cards,
-  .gallery-grid,
-  .win-grid,
-  .faq-grid {
-    grid-template-columns: repeat(2, 1fr); /* ✅ 2 columnas en móviles */
-  }
+  .nav-links { display:none; flex-direction:column; gap:.9rem; background:#fff; padding:1.2rem; border-radius:12px; margin-top:.8rem; box-shadow:0 10px 30px rgba(0,0,0,0.08); }
+  .nav-links.active { display:flex; }
+
+  /* floating button */
+  .wa-floating { bottom: calc(18px + 62px); padding: 12px 16px; }
 }
 
-@media (max-width: 380px){
-  .pricing-grid,
-  .features-cards,
-  .gallery-grid,
-  .win-grid,
-  .faq-grid {
-    grid-template-columns:1fr; /* ✅ 1 columna solo en pantallas MUY angostas */
+@media (max-width: 480px) {
+  /* hero */
+  .hero-title { font-size: 1.5rem; }
+  .hero-sub { font-size: .92rem; max-width: 32ch; }
+  .hero-actions .btn { max-width: 280px; }
+  .hero-features { grid-template-columns: 1fr; }
+  .trust-row { flex-direction: column; gap:.5rem; }
+
+  /* sections */
+  .features-cards, .gallery-grid, .pricing-grid, .ganar-grid, .faq-grid { 
+    grid-template-columns: 1fr; 
+    gap: 1rem;
   }
+
+  /* cards */
+  .ganar-card, .price-card, .card.feature, .gallery-item { padding: 1rem; }
+  .gallery-item img { height: 160px; }
+
+  /* video shorts */
+  .video-wrapper.shorts { max-width: 240px; aspect-ratio:9/16; margin: 0 auto; }
+
+  /* floating button */
+  .wa-floating { right: 12px; bottom: calc(18px + 62px); padding:10px 12px; font-size:.9rem; }
+  .wa-floating span { display:none; } /* en móviles solo el ícono */
 }
