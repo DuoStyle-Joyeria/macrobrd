@@ -146,7 +146,7 @@
   .hero-actions { flex-direction: column; gap:.6rem; }
   .hero-actions .btn { width:100%; max-width:320px; margin: 0 auto; }
 
-  
+  .features-cards, .gallery-grid { grid-template-columns: repeat(2, 1fr); }
   .pricing-grid, .partner-grid, .faq-grid { grid-template-columns: repeat(2, 1fr); }
 
   .mockup-card { max-width: 320px; }
