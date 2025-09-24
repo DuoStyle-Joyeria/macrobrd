@@ -21,8 +21,6 @@
 
 
 
-
-
 /* ========================
    PRICING
    ======================== */
@@ -100,7 +98,6 @@
   .hero-actions { flex-direction: column; gap:.6rem; }
   .hero-actions .btn { width:100%; max-width:320px; margin: 0 auto; }
 
-  .features-cards, .gallery-grid { grid-template-columns: repeat(2, 1fr); }
   .pricing-grid, .partner-grid, .faq-grid { grid-template-columns: repeat(2, 1fr); }
 
   .mockup-card { max-width: 320px; }
@@ -290,20 +287,6 @@ body.luci {
 
 
 
-
-
-
-
-
-.card.feature:hover,
-.gallery-item:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 60px rgba(2,6,23,0.06);
-}
-
-.gallery-item img { width:100%; height:180px; object-fit:cover; border-radius:10px; transition: transform .35s ease; }
-.gallery-item:hover img { transform: scale(1.04); }
-.gallery-item figcaption { font-weight:600; font-size:.95rem; color:var(--muted); }
 
 
 
