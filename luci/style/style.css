@@ -481,12 +481,4 @@ body.luci {
   }
 }
 
-@media (max-width: 380px){
-  .pricing-grid,
-  .features-cards,
-  .gallery-grid,
-  .win-grid,
-  .faq-grid {
-    grid-template-columns:1fr; /* ✅ 1 columna solo en pantallas MUY angostas */
-  }
-}
+
