@@ -121,12 +121,11 @@
 .reveal-init { opacity:0; transform: translateY(10px); transition: opacity .6s var(--transition-fast), transform .6s var(--transition-fast); }
 .reveal-show { opacity:1; transform: translateY(0); }
 
-/* ========================
-   FOOTER adjustments (no overlap)
-   ======================== */
-.site-footer { padding:2.4rem 0 4.5rem 0; border-top:1px solid rgba(15,23,42,0.03); margin-top:2rem; background:transparent; }
-.footer-grid { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
-.footer-nav a { color:var(--muted); display:inline-block; margin-left:1rem; text-decoration:none; font-size:.95rem; }
+
+
+
+
+
 
 /* ========================
    RESPONSIVE
