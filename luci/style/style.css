@@ -150,24 +150,7 @@
   --transition-fast:180ms cubic-bezier(.2,.9,.2,1);
 }
 
-/* ========================
-   Reset / Util
-   ======================== */
-.hidden { display:none !important; }
-.container { width: min(var(--max-width), 96%); margin: 0 auto; }
-body.luci {
-  -webkit-font-smoothing:antialiased;
-  background: var(--bg);
-  color: #0f172a;
-  font-weight: 400;
-  line-height: 1.45;
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-}
 
-.center { text-align:center; }
-.muted { color:var(--muted); }
-.small { font-size:.9rem; }
-.emph { font-weight:600; }
 
 /* ========================
    NAVBAR
