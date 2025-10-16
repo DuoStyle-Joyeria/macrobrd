@@ -1,5 +1,3 @@
-
-
 /**************************************************************************
  * FIREBASE CONFIG
  **************************************************************************/
@@ -218,6 +216,22 @@ onAuthStateChanged(auth, async (user) => {
     await loadEgresosOnce();
     await loadIngresosOnce();
     await loadMovimientos("7d");
+    // ✅ Cargar inventario y luego renderizar cuando haya datos
+    await loadInventoryOnce(db, companyId, inventoryCache);
+    updateCharts();
+
+// 🔄 Mostrar inventario completo sólo si hay datos cargados
+    if (inventoryCache.size > 0) {
+      renderInventoryTable(Array.from(inventoryCache.values()));
+       window.dispatchEvent(new Event("inventoryUpdated"));
+}
+
+// 🔥 Evitar que falle si inventoryCache aún está vacío
+else {
+  console.warn("⚠️ Inventario vacío o sin productos aún.");
+}
+
+    
 
     // users (admin functions) - render list & hook create employee
     setupUsersHandlers();
@@ -340,7 +354,6 @@ async function applyRoleVisibility(companyIdParam) {
 
 
 
-
 /* ======================
    TABS UI
    ====================== */
@@ -353,10 +366,20 @@ function setupTabs() {
       $$(".tab").forEach(t => t.classList.add("hidden"));
       const el = $(`#tab-${id}`);
       if (el) el.classList.remove("hidden");
+
+      // 🔥 Renderiza inventario si se entra a esa pestaña
+      if (id === "inventario") {
+        console.log("📦 Actualizando inventario en vista...");
+        renderInventoryTable(Array.from(inventoryCache.values()));
+        window.dispatchEvent(new Event("inventoryUpdated"));
+      }
     };
   });
+
+  // Por defecto abrimos ventas
   $("[data-tab='ventas']").click();
 }
+
 
 /* ======================
    SUBSCRIPTIONS (inventory / sales / balances)
@@ -371,12 +394,44 @@ function subscribeInventory() {
       if (ch.type === "removed") inventoryCache.delete(id);
       else inventoryCache.set(id, data);
     });
-    renderInventoryTable();
+    renderInventoryTable(Array.from(inventoryCache.values()));
     populateProductSelects();
     updateInventarioKPI();
   });
   unsubscribers.push(unsub);
+  window.dispatchEvent(new Event("inventoryUpdated"));
 }
+
+
+
+/* ======================
+   🔹 CARGA ÚNICA DE INVENTARIO (para evitar ReferenceError)
+   ====================== */
+async function loadInventoryOnce(db, companyId, inventoryCache) {
+  try {
+    const q = query(collection(db, "companies", companyId, "inventory"), orderBy("name"));
+    const snap = await getDocs(q);
+    snap.docs.forEach(docSnap => {
+      const id = docSnap.id;
+      const data = { id, ...docSnap.data() };
+      inventoryCache.set(id, data);
+    });
+
+    console.log("✅ Inventario cargado:", inventoryCache.size, "productos");
+
+    // 🔄 Mostrar inventario completo solo si hay datos
+    if (inventoryCache.size > 0) {
+      renderInventoryTable(Array.from(inventoryCache.values()));
+      window.dispatchEvent(new Event("inventoryUpdated"));
+    } else {
+      console.warn("⚠️ Inventario vacío o sin productos aún.");
+    }
+
+  } catch (err) {
+    console.error("❌ Error cargando inventario:", err);
+  }
+}
+
 
 async function loadSalesOnce() {
   try {
@@ -427,13 +482,23 @@ function updateInventarioKPI() {
 /* ======================
    INVENTORY CRUD
    ====================== */
+/* ======================
+   INVENTORY CRUD + BÚSQUEDA AVANZADA
+   ====================== */
+
 function setupInventoryHandlers() {
   $("#btnCreateProduct")?.addEventListener("click", async (e) => {
     e.preventDefault();
     await handleCreateProduct();
   });
+
+  // 🔍 Activar buscador de inventario
+  setupInventorySearch();
 }
 
+/* -----------------------------------------------------
+   CREAR PRODUCTO
+----------------------------------------------------- */
 async function handleCreateProduct() {
   const name = $("#prodName").value.trim();
   if (!name) return alert("Nombre requerido");
@@ -450,66 +515,168 @@ async function handleCreateProduct() {
   try {
     const newRef = doc(collection(db, "companies", companyId, "inventory"));
     await setDoc(newRef, {
-      name, sku, attributes: { gender, size, color, team },
-      cost, price, stock: initialStock, notes, createdAt: serverTimestamp()
+      name,
+      sku,
+      attributes: { gender, size, color, team },
+      cost,
+      price,
+      stock: initialStock,
+      notes,
+      createdAt: serverTimestamp(),
     });
 
     await runTransaction(db, async (tx) => {
-      const batchRef = doc(collection(db, "companies", companyId, "inventory", newRef.id, "batches"));
-      tx.set(batchRef, { quantity_added: initialStock, remaining: initialStock, received_at: serverTimestamp(), note: "Stock inicial" });
-      const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
-      tx.set(movRef, { productId: newRef.id, qty: initialStock, type: "in", note: "Stock inicial", refId: newRef.id, createdAt: serverTimestamp() });
+      const batchRef = doc(
+        collection(db, "companies", companyId, "inventory", newRef.id, "batches")
+      );
+      tx.set(batchRef, {
+        quantity_added: initialStock,
+        remaining: initialStock,
+        received_at: serverTimestamp(),
+        note: "Stock inicial",
+      });
+      const movRef = doc(
+        collection(db, "companies", companyId, "stock_movements")
+      );
+      tx.set(movRef, {
+        productId: newRef.id,
+        qty: initialStock,
+        type: "in",
+        note: "Stock inicial",
+        refId: newRef.id,
+        createdAt: serverTimestamp(),
+      });
     });
 
-    // limpiar
-    ["#prodName","#prodSku","#prodGender","#prodSize","#prodColor","#prodTeam","#prodCost","#prodPrice","#prodInitialStock","#prodNotes"].forEach(s => { try { $(s).value=""; } catch(e){} });
-    alert("Producto creado correctamente");
+    // limpiar campos
+    [
+      "#prodName",
+      "#prodSku",
+      "#prodGender",
+      "#prodSize",
+      "#prodColor",
+      "#prodTeam",
+      "#prodCost",
+      "#prodPrice",
+      "#prodInitialStock",
+      "#prodNotes",
+    ].forEach((s) => {
+      try {
+        $(s).value = "";
+      } catch (e) {}
+    });
+
+window.dispatchEvent(new Event("inventoryUpdated"));
+
+      
+    alert("✅ Producto creado correctamente");
   } catch (err) {
     console.error("handleCreateProduct error", err);
-    alert("Error creando producto: " + err.message);
+    alert("❌ Error creando producto: " + err.message);
   }
 }
 
-function renderInventoryTable() {
+/* -----------------------------------------------------
+   TABLA DE INVENTARIO
+----------------------------------------------------- */
+/* ====================== INVENTORY TABLE (con filtros y paginador) ====================== */
+function renderInventoryTable(filtered = null) {
   const tb = $("#tbInventory");
   if (!tb) return;
+
   tb.innerHTML = "";
-  const arr = Array.from(inventoryCache.values());
+
+  // Usa el cache actual si no hay filtro activo
+  const arr = filtered || Array.from(inventoryCache.values());
   if (!arr.length) {
-    tb.innerHTML = `<tr><td colspan="5" class="small text-slate-500">No hay productos aún.</td></tr>`;
-    // aplicar paginador (vacío)
+    tb.innerHTML = `
+      <tr>
+        <td colspan="5" class="text-center text-slate-500 py-3 text-sm">
+          No hay productos en el inventario.
+        </td>
+      </tr>`;
+    $("#inventorySummary").textContent = "0 productos | 0 unidades";
     aplicarPaginacion("tbInventory", "pagerInventory", 10);
     return;
   }
+
+  let totalStock = 0;
+
   arr.forEach(p => {
+    totalStock += Number(p.stock || 0);
+
     const attrs = [];
     if (p.attributes?.gender) attrs.push(p.attributes.gender);
     if (p.attributes?.size) attrs.push(p.attributes.size);
     if (p.attributes?.color) attrs.push(p.attributes.color);
     if (p.attributes?.team) attrs.push(p.attributes.team);
+
     const tr = document.createElement("tr");
+    tr.className = "hover:bg-slate-50 transition";
+
     tr.innerHTML = `
-      <td><strong>${escapeHtml(p.name)}</strong><div class="text-xs text-slate-500">${p.sku || ''}</div></td>
-      <td class="small">${attrs.join(' • ')}</td>
-      <td>${money(p.price)}</td>
-      <td>${Number(p.stock || 0)}</td>
-      <td>
-        <button data-id="${p.id}" class="btnAddStock px-2 py-1 border rounded text-sm">+ Stock</button>
-        <button data-id="${p.id}" class="btnEditProduct px-2 py-1 border rounded text-sm">Editar</button>
-        <button data-id="${p.id}" class="btnDeleteProduct px-2 py-1 border rounded text-sm">Borrar</button>
+      <td class="py-2 px-3 font-medium">${escapeHtml(p.name)}</td>
+      <td class="py-2 px-3 text-sm text-slate-600">${attrs.join(" • ")}</td>
+      <td class="py-2 px-3">${money(p.price)}</td>
+      <td class="py-2 px-3 text-center">${p.stock || 0}</td>
+      <td class="py-2 px-3 text-right space-x-1">
+        <button data-id="${p.id}" class="btnAddStock text-emerald-600 hover:text-emerald-800 text-sm font-medium">+ Stock</button>
+        <button data-id="${p.id}" class="btnEditProduct text-blue-600 hover:text-blue-800 text-sm font-medium">Editar</button>
+        <button data-id="${p.id}" class="btnDeleteProduct text-red-600 hover:text-red-800 text-sm font-medium">Borrar</button>
       </td>
     `;
     tb.appendChild(tr);
   });
 
-  $$(".btnAddStock").forEach(b => b.onclick = (ev) => promptAddStock(ev.currentTarget.dataset.id));
-  $$(".btnDeleteProduct").forEach(b => b.onclick = (ev) => { if (confirm("Borrar producto?")) deleteProduct(ev.currentTarget.dataset.id); });
-  $$(".btnEditProduct").forEach(b => b.onclick = (ev) => editProductModal(ev.currentTarget.dataset.id));
+  // Actualiza el resumen total
+  $("#inventorySummary").textContent = `${arr.length} productos | ${totalStock} unidades`;
 
-  // paginador inventario
+  // Acciones
+  $$(".btnAddStock").forEach(b =>
+    b.addEventListener("click", ev => promptAddStock(ev.currentTarget.dataset.id))
+  );
+
+  $$(".btnDeleteProduct").forEach(b =>
+    b.addEventListener("click", ev => {
+      if (confirm("¿Borrar este producto del inventario?")) {
+        deleteProduct(ev.currentTarget.dataset.id);
+      }
+    })
+  );
+
+  $$(".btnEditProduct").forEach(b =>
+    b.addEventListener("click", ev => editProductModal(ev.currentTarget.dataset.id))
+  );
+
+  // Aplica paginación
   aplicarPaginacion("tbInventory", "pagerInventory", 10);
 }
 
+
+/* ====================== APLICAR FILTROS A INVENTARIO ====================== */
+function applyInventoryFilters() {
+  const gender = $("#filterGender")?.value?.trim() || "";
+  const size = $("#filterSize")?.value?.trim() || "";
+  const color = $("#filterColor")?.value?.trim() || "";
+  const team = $("#filterTeam")?.value?.trim() || "";
+
+  const all = Array.from(inventoryCache.values());
+  const filtered = all.filter(p => {
+    const a = p.attributes || {};
+    if (gender && a.gender?.toUpperCase() !== gender.toUpperCase()) return false;
+    if (size && a.size?.toUpperCase() !== size.toUpperCase()) return false;
+    if (color && a.color?.toUpperCase() !== color.toUpperCase()) return false;
+    if (team && a.team?.toUpperCase() !== team.toUpperCase()) return false;
+    return true;
+  });
+
+  renderInventoryTable(filtered);
+}
+
+
+/* -----------------------------------------------------
+   AÑADIR STOCK
+----------------------------------------------------- */
 async function promptAddStock(productId) {
   const qtyStr = prompt("¿Cuántas unidades quieres añadir al stock?");
   if (!qtyStr) return;
@@ -525,29 +692,49 @@ async function promptAddStock(productId) {
       const newStock = Number(prodSnap.data().stock || 0) + qty;
       tx.update(prodRef, { stock: newStock });
 
-      const batchRef = doc(collection(db, "companies", companyId, "inventory", productId, "batches"));
-      tx.set(batchRef, { quantity_added: qty, remaining: qty, received_at: serverTimestamp(), note: note || null });
+      const batchRef = doc(
+        collection(db, "companies", companyId, "inventory", productId, "batches")
+      );
+      tx.set(batchRef, {
+        quantity_added: qty,
+        remaining: qty,
+        received_at: serverTimestamp(),
+        note: note || null,
+      });
 
       const movRef = doc(collection(db, "companies", companyId, "stock_movements"));
-      tx.set(movRef, { productId, qty, type: "in", note: note || null, refId: batchRef.id, createdAt: serverTimestamp() });
+      tx.set(movRef, {
+        productId,
+        qty,
+        type: "in",
+        note: note || null,
+        refId: batchRef.id,
+        createdAt: serverTimestamp(),
+      });
     });
-    alert("Stock actualizado");
+    alert("✅ Stock actualizado");
   } catch (err) {
     console.error("promptAddStock error", err);
-    alert("Error en agregar stock: " + err.message);
+    alert("❌ Error en agregar stock: " + err.message);
   }
 }
 
+/* -----------------------------------------------------
+   ELIMINAR PRODUCTO
+----------------------------------------------------- */
 async function deleteProduct(productId) {
   try {
     await deleteDoc(doc(db, "companies", companyId, "inventory", productId));
-    alert("Producto eliminado");
+    alert("🗑️ Producto eliminado");
   } catch (err) {
     console.error(err);
-    alert("Error al eliminar");
+    alert("❌ Error al eliminar producto");
   }
 }
 
+/* -----------------------------------------------------
+   EDITAR PRODUCTO
+----------------------------------------------------- */
 function editProductModal(productId) {
   const p = inventoryCache.get(productId);
   if (!p) return alert("No encontrado");
@@ -555,81 +742,258 @@ function editProductModal(productId) {
   if (newPrice === null) return;
   const newCost = prompt("Nuevo costo", p.cost || 0);
   if (newCost === null) return;
-  updateDoc(doc(db, "companies", companyId, "inventory", productId), { price: Number(newPrice), cost: Number(newCost) })
-    .then(() => alert("Producto actualizado")).catch(err => { console.error(err); alert("Error actualizando"); });
+  updateDoc(doc(db, "companies", companyId, "inventory", productId), {
+    price: Number(newPrice),
+    cost: Number(newCost),
+  })
+    .then(() => alert("✅ Producto actualizado"))
+    .catch((err) => {
+      console.error(err);
+      alert("❌ Error actualizando producto");
+    });
 }
 
-/* ======================
-   POS / VENTAS
-   ====================== */
-function setupPosHandlers() {
-  $("#btnAddCartLine").onclick = () => createCartLine();
-  $("#btnClearCart").onclick   = () => { $("#cartBody").innerHTML = ""; updateCartTotal(); };
-  $("#btnSubmitSale").onclick  = submitSaleHandler;
-  $("#btnExportSalesRange")?.addEventListener("click", exportSalesRangePrompt);
-  
+/* -----------------------------------------------------
+   FILTRO INTELIGENTE DE INVENTARIO
+----------------------------------------------------- */
+
+function setupInventorySearch() {
+  const input = $("#inventorySearch");
+  const nameSel = $("#filterName");
+  const genderSel = $("#filterGender");
+  const sizeSel = $("#filterSize");
+  const colorSel = $("#filterColor");
+  const teamSel = $("#filterTeam");
+  const summary = $("#inventorySummary");
+
+  if (!input || !genderSel || !sizeSel || !colorSel || !teamSel) return;
+
+  // =========================
+  // 🔹 Inicializar filtros dinámicos con valores únicos del inventario
+  // =========================
+  const populateFilters = () => {
+    const items = Array.from(inventoryCache.values());
+    const unique = {
+      name: new Set(),
+      gender: new Set(),
+      size: new Set(),
+      color: new Set(),
+      team: new Set()
+    };
+
+    // 🔹 Recolectar valores únicos desde el inventario
+    items.forEach(p => {
+      if (p.name) unique.name.add(p.name.toUpperCase());
+      const a = p.attributes || {};
+      if (a.gender) unique.gender.add(a.gender.toUpperCase());
+      if (a.size) unique.size.add(a.size.toUpperCase());
+      if (a.color) unique.color.add(a.color.toUpperCase());
+      if (a.team) unique.team.add(a.team.toUpperCase());
+    });
+
+    // 🔹 Etiquetas en español para los selects
+    const etiquetas = {
+      filterName: "Nombre",
+      filterGender: "Género",
+      filterSize: "Talla",
+      filterColor: "Color",
+      filterTeam: "Equipo"
+    };
+
+    // 🔹 Rellena cada select con los valores únicos
+    const fillSelect = (sel, set) => {
+      if (!sel) return;
+      const current = sel.value; // recuerda la selección actual
+      sel.innerHTML =
+        `<option value="">${etiquetas[sel.id] || sel.id}</option>` +
+        Array.from(set)
+          .sort()
+          .map(v => `<option value="${v}">${v.charAt(0) + v.slice(1).toLowerCase()}</option>`)
+          .join("");
+      if (set.has(current.toUpperCase())) sel.value = current;
+    };
+
+    // 🔹 Aplicar a cada filtro
+    fillSelect(nameSel, unique.name);
+    fillSelect(genderSel, unique.gender);
+    fillSelect(sizeSel, unique.size);
+    fillSelect(colorSel, unique.color);
+    fillSelect(teamSel, unique.team);
+  };
+
+  // =========================
+  // 🔹 Aplicar filtros combinados
+  // =========================
+  const applyFilters = () => {
+    const term = input.value.trim().toLowerCase();
+    const name = nameSel?.value?.trim().toLowerCase() || "";
+    const gender = genderSel.value.trim().toLowerCase();
+    const size = sizeSel.value.trim().toLowerCase();
+    const color = colorSel.value.trim().toLowerCase();
+    const team = teamSel.value.trim().toLowerCase();
+
+    const allItems = Array.from(inventoryCache.values());
+    const filtered = allItems.filter(p => {
+      const n = (p.name || "").toLowerCase();
+      const a = {
+        gender: (p.attributes?.gender || "").toLowerCase(),
+        size: (p.attributes?.size || "").toLowerCase(),
+        color: (p.attributes?.color || "").toLowerCase(),
+        team: (p.attributes?.team || "").toLowerCase(),
+      };
+
+      return (
+        (!term || n.includes(term)) &&
+        (!name || n === name) &&
+        (!gender || a.gender === gender) &&
+        (!size || a.size === size) &&
+        (!color || a.color === color) &&
+        (!team || a.team === team)
+      );
+    });
+
+    renderInventoryTable(filtered);
+
+    const totalStock = filtered.reduce((sum, p) => sum + (p.stock || 0), 0);
+    const totalItems = filtered.length;
+    summary.textContent =
+      totalItems > 0
+        ? `🧾 ${totalItems} productos | ${totalStock} unidades`
+        : "Sin resultados";
+  };
+
+  // =========================
+  // 🔹 Eventos de búsqueda y filtros
+  // =========================
+  [input, nameSel, genderSel, sizeSel, colorSel, teamSel].forEach(el => {
+    if (el) el.addEventListener("input", applyFilters);
+    if (el) el.addEventListener("change", applyFilters);
+  });
+
+  // =========================
+  // 🔹 Render inicial
+  // =========================
+  populateFilters();
+  renderInventoryTable(Array.from(inventoryCache.values()));
+  applyFilters();
+
+  // 🔄 Actualizar filtros cuando cambie el inventario
+  window.addEventListener("inventoryUpdated", () => {
+    populateFilters();
+    applyFilters();
+  });
 }
+
+
+
+
+/* ==========================================================
+                    VENTAS
+   ==================================================== */
+function setupPosHandlers() {
+  // 👉 Al hacer clic abrimos/cerramos el buscador superior
+  const btn = document.getElementById("btnAddCartLine");
+  const container = document.getElementById("posSearchContainer");
+  const input = document.getElementById("posSearchInput");
+
+  if (btn && container) {
+    btn.onclick = () => {
+      container.classList.toggle("hidden");
+      if (!container.classList.contains("hidden") && input) {
+        input.focus();
+      }
+    };
+  }
+
+  // Resto igual
+  document.getElementById("btnClearCart").onclick = () => {
+    document.getElementById("cartBody").innerHTML = "";
+    updateCartTotal();
+  };
+  document.getElementById("btnSubmitSale").onclick = submitSaleHandler;
+  document.getElementById("btnExportSalesRange")?.addEventListener("click", exportSalesRangePrompt);
+}
+
 
 function createCartLine() {
   const tr = document.createElement("tr");
-  const selectHtml = `
-    <div>
-      <input type="text" class="prodSearch w-full border rounded p-1 mb-1" placeholder="Buscar producto (nombre, color, talla, sku...)">
-      <select class="prodSelect w-full border rounded p-1">
-        <option value="">-- seleccionar --</option>
-      </select>
-    </div>
-  `;
+  tr.classList.add("cart-line");
+
+  // ✅ Sustituimos el select tradicional por el buscador avanzado dentro de la celda
   tr.innerHTML = `
-    <td>${selectHtml}</td>
+    <td>
+      <div class="relative">
+        <input type="text" class="prodSearchInput w-full border rounded p-1" placeholder="Buscar producto (nombre, color, talla...)">
+        <div class="prodSearchResults absolute bg-white border rounded shadow hidden w-full max-h-48 overflow-y-auto z-50"></div>
+      </div>
+    </td>
     <td><input type="number" class="lineQty border rounded p-1 w-24" min="1" value="1"></td>
     <td><input type="number" class="linePrice border rounded p-1 w-32" min="0" step="0.01"></td>
     <td class="lineSubtotal">${money(0)}</td>
     <td><button class="btnRemoveLine px-2 py-1 border rounded">Eliminar</button></td>
   `;
+
   $("#cartBody").appendChild(tr);
 
-  const selectEl = tr.querySelector(".prodSelect");
-  const searchInput = tr.querySelector(".prodSearch");
-  populateProductSelectElement(selectEl);
+  const input = tr.querySelector(".prodSearchInput");
+  const results = tr.querySelector(".prodSearchResults");
 
-  searchInput.addEventListener("input", () => {
-    const q = searchInput.value.trim().toLowerCase();
-    Array.from(selectEl.options).forEach(opt => {
-      if (!opt.value) { opt.hidden = false; return; }
-      opt.hidden = q ? !opt.text.toLowerCase().includes(q) : false;
+  // 🔍 Buscar productos por nombre, atributos o SKU
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { results.classList.add("hidden"); return; }
+
+    const filtered = Array.from(inventoryCache.values()).filter(p => {
+      const text = `${p.name} ${p.sku} ${p.attributes?.gender || ""} ${p.attributes?.size || ""} ${p.attributes?.color || ""} ${p.attributes?.team || ""}`.toLowerCase();
+      return text.includes(q);
     });
-  });
-  searchInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const first = Array.from(selectEl.options).find(o => !o.hidden && o.value);
-      if (first) {
-        selectEl.value = first.value;
-        selectEl.dispatchEvent(new Event('change'));
-      }
-    }
-  });
 
-  selectEl.onchange = (e) => {
-    const pid = e.target.value;
-    if (!pid) {
-      tr.querySelector(".linePrice").value = 0;
-      tr.querySelector(".lineQty").value   = 1;
-      updateLineSubtotal(tr);
+    if (!filtered.length) {
+      results.innerHTML = `<div class="p-2 text-slate-500 text-sm">Sin resultados</div>`;
+      results.classList.remove("hidden");
       return;
     }
-    const p = inventoryCache.get(pid);
-    tr.dataset.productId = pid;
-    tr.querySelector(".linePrice").value = p.price || 0;
-    tr.querySelector(".lineQty").value   = 1;
-    updateLineSubtotal(tr);
-  };
 
-  tr.querySelector(".lineQty").oninput   = () => updateLineSubtotal(tr);
+    results.innerHTML = filtered.map(p => `
+      <div data-id="${p.id}" class="p-2 hover:bg-emerald-50 cursor-pointer flex justify-between items-center border-b">
+        <div>
+          <div class="font-medium text-slate-800">${escapeHtml(p.name)}</div>
+          <div class="text-xs text-slate-500">${[p.attributes?.gender, p.attributes?.size, p.attributes?.color, p.attributes?.team].filter(Boolean).join(" • ")}</div>
+        </div>
+        <div class="text-right">
+          <div class="text-emerald-700 font-semibold">${money(p.price)}</div>
+          <div class="text-xs text-slate-400">Stock: ${p.stock || 0}</div>
+        </div>
+      </div>
+    `).join("");
+    results.classList.remove("hidden");
+
+    // ✅ al seleccionar producto
+    results.querySelectorAll("[data-id]").forEach(el => {
+      el.onclick = () => {
+        const pid = el.dataset.id;
+        const prod = inventoryCache.get(pid);
+        if (!prod) return alert("Producto no encontrado");
+        tr.dataset.productId = pid;
+        input.value = prod.name;
+        tr.querySelector(".linePrice").value = prod.price || 0;
+        tr.querySelector(".lineQty").value = 1;
+        updateLineSubtotal(tr);
+        results.classList.add("hidden");
+      };
+    });
+  });
+
+  // Ocultar resultados si se hace clic fuera
+  document.addEventListener("click", (e) => {
+    if (!tr.contains(e.target)) results.classList.add("hidden");
+  });
+
+  tr.querySelector(".lineQty").oninput = () => updateLineSubtotal(tr);
   tr.querySelector(".linePrice").oninput = () => updateLineSubtotal(tr);
   tr.querySelector(".btnRemoveLine").onclick = () => { tr.remove(); updateCartTotal(); };
 }
+
 
 function populateProductSelectElement(selectEl) {
   const current = selectEl.value || "";
@@ -670,62 +1034,227 @@ function updateCartTotal() {
   $("#cartTotal").textContent = money(total);
 }
 
+/* ======================
+   BUSCADOR DE VENTAS AVANZADO
+   ====================== */
+/* ======================
+   BUSCADOR DE VENTAS AVANZADO (v2)
+   ====================== */
 function setupPosSearch() {
   const input = $("#posSearchInput");
-  const resultsDiv = $("#posSearchResults");
-  if (!input) return;
+  const resultsBox = $("#posSearchResults");
+  const summaryBox = $("#posSearchSummary");
+  const container = $("#posSearchContainer");
 
-  document.addEventListener("click", (ev) => {
-    if (!resultsDiv.contains(ev.target) && !input.contains(ev.target)) resultsDiv.classList.add("hidden");
+  // Incluimos también el filtro de NOMBRE
+  const filters = {
+    name: $("#filterPosName"),
+    gender: $("#filterPosGender"),
+    size: $("#filterPosSize"),
+    color: $("#filterPosColor"),
+    team: $("#filterPosTeam"),
+  };
+
+  if (!input || !resultsBox) return;
+
+  // 🔄 Mostrar u ocultar buscador al hacer clic en “Agregar artículo”
+  $("#btnAddCartLine").addEventListener("click", () => {
+    container.classList.toggle("hidden");
+    if (!container.classList.contains("hidden")) {
+      input.focus();
+      populatePosFilters();
+    }
   });
 
-  input.oninput = () => {
-    const q = normalizeForSearch(input.value.trim());
-    resultsDiv.innerHTML = "";
-    if (!q) { resultsDiv.classList.add("hidden"); return; }
+  // 🔄 Rellenar selects de filtros dinámicos (incluye “Nombre”)
+  function populatePosFilters() {
+    const items = Array.from(inventoryCache.values());
 
-    const matches = Array.from(inventoryCache.values()).filter(p => {
-      const haystack = [
-        p.name, p.sku, p.attributes?.gender, p.attributes?.size, p.attributes?.color, p.attributes?.team
-      ].filter(Boolean).map(normalizeForSearch).join(" ");
-      return haystack.includes(q);
+    const unique = {
+      name: new Set(),
+      gender: new Set(),
+      size: new Set(),
+      color: new Set(),
+      team: new Set(),
+    };
+
+    items.forEach(p => {
+      // Nombre (campo principal)
+      if (p.name) unique.name.add(String(p.name).trim().toUpperCase());
+
+      // Atributos adicionales
+      const a = p.attributes || {};
+      if (a.gender) unique.gender.add(String(a.gender).trim().toUpperCase());
+      if (a.size) unique.size.add(String(a.size).trim().toUpperCase());
+      if (a.color) unique.color.add(String(a.color).trim().toUpperCase());
+      if (a.team) unique.team.add(String(a.team).trim().toUpperCase());
     });
 
-    if (!matches.length) {
-      resultsDiv.innerHTML = `<div class="p-2 text-slate-500">Sin resultados</div>`;
-      resultsDiv.classList.remove("hidden");
+    const fillSelect = (sel, set, label) => {
+      if (!sel) return;
+      sel.innerHTML = `<option value="">${label}</option>`;
+      Array.from(set)
+        .filter(v => v)
+        .sort()
+        .forEach(v => {
+          const pretty = v.charAt(0) + v.slice(1).toLowerCase();
+          sel.innerHTML += `<option value="${v}">${pretty}</option>`;
+        });
+    };
+
+    fillSelect(filters.name, unique.name, "Nombre");
+    fillSelect(filters.gender, unique.gender, "Género");
+    fillSelect(filters.size, unique.size, "Talla");
+    fillSelect(filters.color, unique.color, "Color");
+    fillSelect(filters.team, unique.team, "Equipo");
+  }
+
+  // 🧠 Lógica de búsqueda avanzada (incluye filtro por nombre)
+  function searchInventory(query) {
+    query = query.trim().toLowerCase();
+
+    const n = (filters.name?.value || "").toLowerCase();
+    const g = (filters.gender?.value || "").toLowerCase();
+    const s = (filters.size?.value || "").toLowerCase();
+    const c = (filters.color?.value || "").toLowerCase();
+    const t = (filters.team?.value || "").toLowerCase();
+
+    const all = Array.from(inventoryCache.values());
+    return all.filter(p => {
+      const text = `${p.name} ${p.sku} ${p.attributes?.gender || ""} ${p.attributes?.size || ""} ${p.attributes?.color || ""} ${p.attributes?.team || ""}`.toLowerCase();
+
+      const matchesQuery = !query || text.includes(query);
+      const matchesName = !n || (p.name || "").toLowerCase() === n;
+      const matchesGender = !g || (p.attributes?.gender || "").toLowerCase() === g;
+      const matchesSize = !s || (p.attributes?.size || "").toLowerCase() === s;
+      const matchesColor = !c || (p.attributes?.color || "").toLowerCase() === c;
+      const matchesTeam = !t || (p.attributes?.team || "").toLowerCase() === t;
+
+      return matchesQuery && matchesName && matchesGender && matchesSize && matchesColor && matchesTeam;
+    });
+  }
+
+  // 🧭 Evento principal: búsqueda dinámica
+  input.addEventListener("input", () => renderResults());
+  Object.values(filters).forEach(sel => sel?.addEventListener("change", () => renderResults()));
+
+  function renderResults() {
+    const query = input.value;
+    const results = searchInventory(query);
+    resultsBox.innerHTML = "";
+
+    if (!results.length) {
+      resultsBox.classList.add("hidden");
+      summaryBox.textContent = "Sin resultados.";
       return;
     }
 
-    matches.forEach(p => {
+    resultsBox.classList.remove("hidden");
+    summaryBox.textContent = `${results.length} producto(s) encontrados`;
+
+    results.forEach(p => {
       const div = document.createElement("div");
-      div.className = "p-2 hover:bg-slate-100 cursor-pointer text-sm";
-      div.dataset.pid = p.id;
-      const attrs = [];
-      if (p.attributes?.gender) attrs.push(p.attributes.gender);
-      if (p.attributes?.size)   attrs.push(p.attributes.size);
-      if (p.attributes?.color)  attrs.push(p.attributes.color);
-      if (p.attributes?.team)   attrs.push(p.attributes.team);
-      div.textContent = `${p.name}${attrs.length ? " (" + attrs.join(" • ") + ")" : ""} — Stock: ${p.stock || 0}`;
-      div.onclick = () => { addProductToCart(p.id); resultsDiv.classList.add("hidden"); input.value = ""; };
-      resultsDiv.appendChild(div);
-    });
-
-    resultsDiv.classList.remove("hidden");
-  };
-
-  input.onkeydown = (ev) => {
-    if (ev.key === "Enter") {
-      const candidate = resultsDiv.querySelector("div[data-pid]");
-      if (candidate) {
-        addProductToCart(candidate.dataset.pid);
-        resultsDiv.classList.add("hidden");
+      div.className = "search-suggestion";
+      const attrs = [p.attributes?.gender, p.attributes?.size, p.attributes?.color, p.attributes?.team]
+        .filter(Boolean)
+        .join(" • ");
+      div.innerHTML = `
+        <strong>${escapeHtml(p.name || "Sin nombre")}</strong>
+        <div class="text-xs text-slate-500">${attrs}</div>
+      `;
+      div.addEventListener("click", () => {
+        addProductToCart(p);
+        container.classList.add("hidden");
         input.value = "";
-        ev.preventDefault();
-      }
+        resultsBox.innerHTML = "";
+        summaryBox.textContent = "";
+      });
+      resultsBox.appendChild(div);
+    });
+  }
+
+
+  // 🧭 Render de resultados
+  function renderResults(list) {
+    if (!list.length) {
+      resultsBox.innerHTML = `<div class="p-2 text-slate-500 text-sm">Sin resultados.</div>`;
+      resultsBox.classList.remove("hidden");
+      summaryBox.textContent = "";
+      return;
+    }
+
+    resultsBox.innerHTML = list.map(p => `
+      <div class="p-2 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 flex justify-between items-center" data-id="${p.id}">
+        <div>
+          <div class="font-medium text-slate-800">${escapeHtml(p.name)}</div>
+          <div class="text-xs text-slate-500">${[p.attributes?.gender, p.attributes?.size, p.attributes?.color, p.attributes?.team].filter(Boolean).join(" • ")}</div>
+        </div>
+        <div class="text-right">
+          <div class="text-emerald-700 font-semibold">${money(p.price)}</div>
+          <div class="text-xs text-slate-400">Stock: ${p.stock || 0}</div>
+        </div>
+      </div>
+    `).join("");
+
+    resultsBox.classList.remove("hidden");
+    summaryBox.textContent = `${list.length} resultado${list.length !== 1 ? "s" : ""}`;
+
+    // Evento de clic → agregar al carrito
+
+      // Evento de clic → agregar al carrito
+$$("#posSearchResults div[data-id]").forEach(el => {
+  el.onclick = (e) => {
+    const pid = e.currentTarget.dataset.id;
+    const prod = inventoryCache.get(pid);
+
+    if (!prod) {
+      console.warn("⚠️ Producto no encontrado en inventoryCache:", pid);
+      alert("⚠️ Producto no encontrado en inventario.");
+      return;
+    }
+
+    try {
+      // ✅ Ahora pasamos el ID (no el objeto) para que addProductToCart lo maneje correctamente
+      addProductToCart(pid);
+
+      // Limpiar y ocultar buscador
+      resultsBox.classList.add("hidden");
+      container.classList.add("hidden");
+      input.value = "";
+      summaryBox.textContent = "";
+      window.luciEvents?.venta?.();
+    } catch (err) {
+      console.error("❌ Error al agregar producto:", err);
+      alert("Error al agregar este producto al carrito.");
     }
   };
+});
+
+     
+
+  }
+
+  // 🕒 Búsqueda con debounce
+  let debounce;
+  function handleSearch() {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      const q = input.value;
+      const res = searchInventory(q);
+      renderResults(res);
+    }, 250);
+  }
+
+  input.addEventListener("input", handleSearch);
+  Object.values(filters).forEach(f => f.addEventListener("change", handleSearch));
+  document.addEventListener("click", (e) => {
+    if (!container.contains(e.target) && e.target !== $("#btnAddCartLine")) {
+      resultsBox.classList.add("hidden");
+    }
+  });
 }
+
+
 
 function addProductToCart(productId) {
   const prod = inventoryCache.get(productId);
@@ -1095,6 +1624,10 @@ function setupCajaControls() {
   });
 }
 
+
+  /* ==========================================================
+                    FIN VENTAS
+   ==================================================== */
 /* ======================
    EGRESOS (antes 'Gastos')
    ====================== */
@@ -1768,6 +2301,7 @@ function normalizeForSearch(str) {
 window.addEventListener("DOMContentLoaded", () => {
   try { setupPosHandlers(); } catch(e) {}
   try { setupCajaControls(); } catch(e) {}
+  try { setupPosSearch(); } catch(e) {} 
 });
 window._dbg = { db, inventoryCache, salesCache, runTransaction };
 
@@ -1840,4 +2374,5 @@ function aplicarPaginacion(tableId, pagerId, pageSize = 10) {
   // inicial
   mostrarPagina(1);
 }
+
 /* FIN app.js */
